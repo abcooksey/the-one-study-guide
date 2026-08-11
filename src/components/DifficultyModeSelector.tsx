@@ -23,6 +23,11 @@ export default function DifficultyModeSelector({
 }: DifficultyModeSelectorProps) {
   const profileEmoji = profile === 'Alex' ? '👑' : profile === 'Angus' ? '⚔️' : '🧙';
 
+  // Filter out "Practice Weak Areas" for Guest users since their data isn't saved
+  const availableModes = profile === 'Guest'
+    ? DIFFICULTY_MODES.filter((mode) => mode.value !== 'weakness')
+    : DIFFICULTY_MODES;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -52,7 +57,7 @@ export default function DifficultyModeSelector({
             </p>
 
             <div className="space-y-3">
-              {DIFFICULTY_MODES.map((mode) => (
+              {availableModes.map((mode) => (
                 <button
                   key={mode.value}
                   onClick={() => onSelect(mode.value)}
