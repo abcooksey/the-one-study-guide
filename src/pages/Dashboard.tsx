@@ -381,7 +381,7 @@ export default function Dashboard() {
           >
             <div className="flex items-center gap-4">
               <div className="text-4xl group-hover:scale-110 transition-transform">
-                ..
+                ⚔️
               </div>
               <div>
                 <h3 className="font-medium text-forest-900 text-lg">Create Battle</h3>
@@ -398,7 +398,7 @@ export default function Dashboard() {
           >
             <div className="flex items-center gap-4">
               <div className="text-4xl group-hover:scale-110 transition-transform">
-                ..
+                🛡️
               </div>
               <div>
                 <h3 className="font-medium text-brass-900 text-lg">Join Battle</h3>
