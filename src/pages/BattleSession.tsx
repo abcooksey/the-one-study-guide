@@ -30,6 +30,7 @@ export default function BattleSession() {
   } = useBattleStore();
 
   const getFlashcardById = useAppStore((state) => state.getFlashcardById);
+  const flagFlashcard = useAppStore((state) => state.flagFlashcard);
 
   const attempts = getAttempts();
   const opponent = getOpponent();
@@ -155,6 +156,12 @@ export default function BattleSession() {
     }
   };
 
+  const handleFlagQuestion = () => {
+    if (!currentFlashcard) return;
+    // Quick flag with generic reason - no modal in battle mode
+    flagFlashcard(currentFlashcard.id, 'other', 'Flagged during battle', 'Guest');
+  };
+
   const handleAbandon = () => {
     leaveBattle();
     navigate('/');
@@ -237,6 +244,7 @@ export default function BattleSession() {
           status={currentAttempt?.status ?? 'unanswered'}
           onMarkCorrect={handleMarkCorrect}
           onMarkIncorrect={handleMarkIncorrect}
+          onFlag={handleFlagQuestion}
         />
       </div>
 
