@@ -13,6 +13,8 @@ import {
   Edition,
   Profile,
   DifficultyMode,
+  FlagReason,
+  FlashcardFlag,
 } from '../types';
 import { createSeedFlashcards } from '../data/seedQuestions';
 import {
@@ -61,6 +63,9 @@ interface AppState {
   addFlashcard: (input: FlashcardInput) => Flashcard;
   updateFlashcard: (id: string, input: Partial<FlashcardInput>) => void;
   deleteFlashcard: (id: string) => void;
+  flagFlashcard: (id: string, reason: FlagReason, description: string | undefined, profile: Profile) => void;
+  unflagFlashcard: (id: string) => void;
+  getFlaggedFlashcards: () => Flashcard[];
 
   // Actions - Session
   startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => boolean;
@@ -254,9 +259,48 @@ export const useAppStore = create<AppState>()(
         get().syncFlashcardsToCloud();
       },
 
+      flagFlashcard: (id, reason, description, profile) => {
+        const flag: FlashcardFlag = {
+          reason,
+          description,
+          flaggedAt: new Date().toISOString(),
+          flaggedBy: profile,
+        };
+
+        set((state) => ({
+          flashcards: state.flashcards.map((f) =>
+            f.id === id
+              ? { ...f, flag, updatedAt: new Date().toISOString() }
+              : f
+          ),
+        }));
+
+        // Sync to cloud
+        get().syncFlashcardsToCloud();
+      },
+
+      unflagFlashcard: (id) => {
+        set((state) => ({
+          flashcards: state.flashcards.map((f) =>
+            f.id === id
+              ? { ...f, flag: undefined, updatedAt: new Date().toISOString() }
+              : f
+          ),
+        }));
+
+        // Sync to cloud
+        get().syncFlashcardsToCloud();
+      },
+
+      getFlaggedFlashcards: () => {
+        const state = get();
+        return state.flashcards.filter((f) => f.flag !== undefined);
+      },
+
       startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => {
         const state = get();
-        const availableFlashcards = state.flashcards;
+        // Exclude flagged flashcards from sessions
+        const availableFlashcards = state.flashcards.filter((f) => !f.flag);
 
         if (availableFlashcards.length < QUESTIONS_PER_ROUND) {
           return false;

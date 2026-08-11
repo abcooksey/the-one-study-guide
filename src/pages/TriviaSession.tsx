@@ -4,11 +4,14 @@ import { useAppStore } from '../store';
 import Flashcard from '../components/Flashcard';
 import ProgressBar from '../components/ProgressBar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FlagIssueModal from '../components/FlagIssueModal';
+import { FlagReason } from '../types';
 
 export default function TriviaSession() {
   const navigate = useNavigate();
   const [showAbandonDialog, setShowAbandonDialog] = useState(false);
   const [showUnansweredDialog, setShowUnansweredDialog] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
 
   const currentSession = useAppStore((state) => state.currentSession);
   const currentCardIndex = useAppStore((state) => state.currentCardIndex);
@@ -25,6 +28,7 @@ export default function TriviaSession() {
   const markAnswer = useAppStore((state) => state.markAnswer);
   const completeSession = useAppStore((state) => state.completeSession);
   const abandonSession = useAppStore((state) => state.abandonSession);
+  const flagFlashcard = useAppStore((state) => state.flagFlashcard);
 
   // Redirect if no session
   useEffect(() => {
@@ -88,6 +92,20 @@ export default function TriviaSession() {
   const handleMarkIncorrect = () => {
     markAnswer('incorrect');
     // Auto-advance to next card after marking
+    if (!isLastCard) {
+      setTimeout(() => goToNextCard(), 300);
+    }
+  };
+
+  const handleFlagQuestion = () => {
+    setShowFlagModal(true);
+  };
+
+  const handleFlagSubmit = (reason: FlagReason, description?: string) => {
+    if (!currentFlashcard || !currentSession) return;
+    flagFlashcard(currentFlashcard.id, reason, description, currentSession.profile);
+    setShowFlagModal(false);
+    // Auto-advance to next card after flagging
     if (!isLastCard) {
       setTimeout(() => goToNextCard(), 300);
     }
@@ -200,6 +218,7 @@ export default function TriviaSession() {
           status={currentAttempt?.status ?? 'unanswered'}
           onMarkCorrect={handleMarkCorrect}
           onMarkIncorrect={handleMarkIncorrect}
+          onFlag={handleFlagQuestion}
         />
       </div>
 
@@ -280,6 +299,13 @@ export default function TriviaSession() {
         confirmVariant="primary"
         onConfirm={handleGoToFirstUnanswered}
         onCancel={() => setShowUnansweredDialog(false)}
+      />
+
+      {/* Flag Issue Modal */}
+      <FlagIssueModal
+        isOpen={showFlagModal}
+        onSubmit={handleFlagSubmit}
+        onCancel={() => setShowFlagModal(false)}
       />
     </div>
   );

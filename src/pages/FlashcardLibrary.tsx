@@ -2,17 +2,23 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { CATEGORIES, FILMS, DIFFICULTIES, Category, Film, Difficulty } from '../types';
+import { CATEGORIES, FILMS, DIFFICULTIES, Category, Film, Difficulty, FLAG_REASONS } from '../types';
 
 export default function FlashcardLibrary() {
   const flashcards = useAppStore((state) => state.flashcards);
   const deleteFlashcard = useAppStore((state) => state.deleteFlashcard);
+  const unflagFlashcard = useAppStore((state) => state.unflagFlashcard);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<Category | 'all'>('all');
   const [filmFilter, setFilmFilter] = useState<Film | 'all'>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | 'all'>('all');
+  const [flaggedFilter, setFlaggedFilter] = useState<'all' | 'flagged' | 'unflagged'>('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const flaggedCount = useMemo(() => {
+    return flashcards.filter((f) => f.flag).length;
+  }, [flashcards]);
 
   const filteredFlashcards = useMemo(() => {
     return flashcards.filter((card) => {
@@ -40,9 +46,17 @@ export default function FlashcardLibrary() {
         return false;
       }
 
+      // Flagged filter
+      if (flaggedFilter === 'flagged' && !card.flag) {
+        return false;
+      }
+      if (flaggedFilter === 'unflagged' && card.flag) {
+        return false;
+      }
+
       return true;
     });
-  }, [flashcards, searchQuery, categoryFilter, filmFilter, difficultyFilter]);
+  }, [flashcards, searchQuery, categoryFilter, filmFilter, difficultyFilter, flaggedFilter]);
 
   const handleDelete = () => {
     if (deleteId) {
@@ -60,13 +74,20 @@ export default function FlashcardLibrary() {
     setCategoryFilter('all');
     setFilmFilter('all');
     setDifficultyFilter('all');
+    setFlaggedFilter('all');
   };
 
   const hasActiveFilters =
     searchQuery ||
     categoryFilter !== 'all' ||
     filmFilter !== 'all' ||
-    difficultyFilter !== 'all';
+    difficultyFilter !== 'all' ||
+    flaggedFilter !== 'all';
+
+  const getFlagReasonLabel = (reasonValue: string) => {
+    const reason = FLAG_REASONS.find((r) => r.value === reasonValue);
+    return reason?.label || reasonValue;
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -78,17 +99,36 @@ export default function FlashcardLibrary() {
           </h1>
           <p className="text-charcoal-600 mt-1">
             {flashcards.length} total questions
+            {flaggedCount > 0 && (
+              <span className="ml-2 text-red-600">
+                • {flaggedCount} flagged
+              </span>
+            )}
           </p>
         </div>
 
-        <Link to="/add" className="btn-primary">
-          + Add Flashcard
-        </Link>
+        <div className="flex gap-2">
+          {flaggedCount > 0 && (
+            <button
+              onClick={() => setFlaggedFilter(flaggedFilter === 'flagged' ? 'all' : 'flagged')}
+              className={`btn-sm ${
+                flaggedFilter === 'flagged'
+                  ? 'bg-red-100 text-red-700 border-red-300'
+                  : 'btn-secondary'
+              }`}
+            >
+              🚩 {flaggedCount} Flagged
+            </button>
+          )}
+          <Link to="/add" className="btn-primary">
+            + Add Flashcard
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="card mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Search */}
           <div className="lg:col-span-2">
             <label htmlFor="search" className="sr-only">
@@ -167,6 +207,25 @@ export default function FlashcardLibrary() {
               ))}
             </select>
           </div>
+
+          {/* Status (Flagged) */}
+          <div>
+            <label htmlFor="status" className="sr-only">
+              Filter by status
+            </label>
+            <select
+              id="status"
+              value={flaggedFilter}
+              onChange={(e) =>
+                setFlaggedFilter(e.target.value as 'all' | 'flagged' | 'unflagged')
+              }
+              className="select"
+            >
+              <option value="all">All Status</option>
+              <option value="flagged">🚩 Flagged</option>
+              <option value="unflagged">Active</option>
+            </select>
+          </div>
         </div>
 
         {hasActiveFilters && (
@@ -215,7 +274,9 @@ export default function FlashcardLibrary() {
           {filteredFlashcards.map((card) => (
             <div
               key={card.id}
-              className="card hover:shadow-card-hover transition-shadow"
+              className={`card hover:shadow-card-hover transition-shadow ${
+                card.flag ? 'border-l-4 border-l-red-400 bg-red-50/30' : ''
+              }`}
             >
               <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                 <div className="flex-1 min-w-0">
@@ -239,6 +300,11 @@ export default function FlashcardLibrary() {
                         Custom
                       </span>
                     )}
+                    {card.flag && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                        🚩 Flagged
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="font-medium text-charcoal-900 mb-1">
@@ -255,6 +321,34 @@ export default function FlashcardLibrary() {
                       </>
                     )}
                   </div>
+
+                  {/* Flag details */}
+                  {card.flag && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-red-800">
+                            Issue: {getFlagReasonLabel(card.flag.reason)}
+                          </p>
+                          {card.flag.description && (
+                            <p className="text-sm text-red-700 mt-1">
+                              "{card.flag.description}"
+                            </p>
+                          )}
+                          <p className="text-xs text-red-500 mt-1">
+                            Flagged by {card.flag.flaggedBy} on{' '}
+                            {new Date(card.flag.flaggedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => unflagFlashcard(card.id)}
+                          className="shrink-0 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          ✓ Resolve
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex sm:flex-col gap-2 shrink-0">

@@ -8,6 +8,7 @@ interface FlashcardProps {
   status: AttemptStatus;
   onMarkCorrect: () => void;
   onMarkIncorrect: () => void;
+  onFlag?: () => void;
 }
 
 export default function Flashcard({
@@ -17,6 +18,7 @@ export default function Flashcard({
   status,
   onMarkCorrect,
   onMarkIncorrect,
+  onFlag,
 }: FlashcardProps) {
   const isAnswered = status !== 'unanswered';
   const prefersReducedMotion = window.matchMedia(
@@ -45,6 +47,33 @@ export default function Flashcard({
           >
           {/* Front of card */}
           <div className="flashcard-face flashcard-front">
+            {/* Flag button */}
+            {onFlag && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFlag();
+                }}
+                className="absolute top-3 right-3 p-2 text-charcoal-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+                title="Flag issue with this question"
+                aria-label="Flag issue with this question"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" y1="22" x2="4" y2="15" />
+                </svg>
+              </button>
+            )}
             <div className="flex-1 flex flex-col items-center justify-center text-center">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-brass-100 text-brass-800 mb-4">
                 {flashcard.category}
@@ -87,6 +116,34 @@ export default function Flashcard({
 
           {/* Back of card */}
           <div className="flashcard-face flashcard-back">
+            {/* Flag button (mirrored for back face) */}
+            {onFlag && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFlag();
+                }}
+                className="absolute top-3 left-3 p-2 text-forest-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+                style={{ transform: 'scaleX(-1)' }}
+                title="Flag issue with this question"
+                aria-label="Flag issue with this question"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" y1="22" x2="4" y2="15" />
+                </svg>
+              </button>
+            )}
             <div className="flex-1 flex flex-col items-center justify-center text-center">
               <span className="text-sm text-forest-600 font-medium mb-3">
                 Answer

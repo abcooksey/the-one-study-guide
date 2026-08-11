@@ -27,6 +27,21 @@ export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
 export type Profile = 'Alex' | 'Angus' | 'Guest';
 
+export type FlagReason = 'gives_away_answer' | 'incorrect_answer' | 'other';
+
+export const FLAG_REASONS: { value: FlagReason; label: string }[] = [
+  { value: 'gives_away_answer', label: 'Question gives away the answer' },
+  { value: 'incorrect_answer', label: 'Answer is incorrect' },
+  { value: 'other', label: 'Other issue' },
+];
+
+export interface FlashcardFlag {
+  reason: FlagReason;
+  description?: string;
+  flaggedAt: string;
+  flaggedBy: Profile;
+}
+
 export const PROFILES: Profile[] = ['Alex', 'Angus', 'Guest'];
 
 export type DifficultyMode = 'progressive' | 'warmup' | 'random';
@@ -62,6 +77,7 @@ export interface Flashcard {
   isCustom: boolean;
   createdAt: string;
   updatedAt: string;
+  flag?: FlashcardFlag;
 }
 
 export type AttemptStatus = 'correct' | 'incorrect' | 'unanswered';
