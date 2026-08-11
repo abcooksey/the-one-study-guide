@@ -135,7 +135,7 @@ export const angusFiftyPercentMessages: MessagePool = {
     },
     {
       text: "You're the Aragorn to my Arwen.",
-      subtext: "And you're crushing this quiz like you crush my heart.",
+      subtext: "And you're crushing this quiz like I crush on you!",
       imageUrl: "https://media.giphy.com/media/TcdpZwYDPlWXC/giphy.gif",
       imageAlt: "Gandalf nodding approvingly",
     },
@@ -155,7 +155,7 @@ export const angusFiftyPercentMessages: MessagePool = {
   struggling: [
     {
       text: "Even if you lose, you're still my precious.",
-      subtext: "But like, in a less creepy way than Gollum.",
+      subtext: "But like, in a less creepy way.",
       imageUrl: "https://media.giphy.com/media/1BiKKKBCXlQhq/giphy.gif",
       imageAlt: "Sam encouraging",
     },
@@ -216,7 +216,7 @@ export const angusSeventyFivePercentMessages: MessagePool = {
     },
     {
       text: "I can't carry these answers for you...",
-      subtext: "But I CAN make you a snack after. 5 more questions!",
+      subtext: "But I CAN feed you a Monty Moose after. 5 more questions!",
       imageUrl: "https://media.giphy.com/media/TKjsEV8bDIJzy/giphy.gif",
       imageAlt: "Sam carrying Frodo",
     },
