@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 import { getRandomMessage, EncouragementMessage } from '../data/encouragementMessages';
+import { Profile } from '../types';
 
 interface EncouragementCardProps {
   milestone: 50 | 75;
   isDoingWell: boolean;
   accuracy: number;
+  profile: Profile;
   onContinue: () => void;
 }
 
@@ -13,14 +15,15 @@ export default function EncouragementCard({
   milestone,
   isDoingWell,
   accuracy,
+  profile,
   onContinue,
 }: EncouragementCardProps) {
   const [imageError, setImageError] = useState(false);
 
-  // Get a random message when the component mounts
+  // Get a random message when the component mounts (profile-specific for Angus)
   const message: EncouragementMessage = useMemo(() => {
-    return getRandomMessage(milestone, isDoingWell);
-  }, [milestone, isDoingWell]);
+    return getRandomMessage(milestone, isDoingWell, profile);
+  }, [milestone, isDoingWell, profile]);
 
   const milestoneLabel = milestone === 50 ? 'Halfway There!' : 'Almost Done!';
   const questionsLeft = milestone === 50 ? 10 : 5;

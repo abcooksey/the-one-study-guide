@@ -270,6 +270,7 @@ export default function TriviaSession() {
             milestone={encouragementData.milestone}
             isDoingWell={encouragementData.isDoingWell}
             accuracy={encouragementData.accuracy}
+            profile={currentSession.profile}
             onContinue={handleEncouragementContinue}
           />
         ) : (
