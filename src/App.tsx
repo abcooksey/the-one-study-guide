@@ -11,10 +11,17 @@ import EditFlashcard from './pages/EditFlashcard';
 
 function App() {
   const initializeFlashcards = useAppStore((state) => state.initializeFlashcards);
+  const initializeCloudSync = useAppStore((state) => state.initializeCloudSync);
 
   useEffect(() => {
-    initializeFlashcards();
-  }, [initializeFlashcards]);
+    const initialize = async () => {
+      // Try to initialize cloud sync first
+      await initializeCloudSync();
+      // Then initialize flashcards (will use cloud data if available)
+      initializeFlashcards();
+    };
+    initialize();
+  }, [initializeFlashcards, initializeCloudSync]);
 
   return (
     <Layout>

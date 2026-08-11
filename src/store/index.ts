@@ -15,6 +15,15 @@ import {
   DifficultyMode,
 } from '../types';
 import { createSeedFlashcards } from '../data/seedQuestions';
+import {
+  isFirebaseConfigured,
+  loadAppData,
+  loadAllSessions,
+  saveAppData,
+  saveProfileSessions,
+  subscribeToAppData,
+  subscribeToProfileSessions,
+} from '../lib/firestore';
 
 const QUESTIONS_PER_ROUND = 20;
 
@@ -42,6 +51,11 @@ interface AppState {
   // Session History
   sessions: Session[];
 
+  // Cloud Sync
+  cloudSyncEnabled: boolean;
+  cloudSyncLoading: boolean;
+  lastSyncedAt: string | null;
+
   // Actions - Flashcards
   initializeFlashcards: () => void;
   addFlashcard: (input: FlashcardInput) => Flashcard;
@@ -58,6 +72,11 @@ interface AppState {
   markAnswer: (status: 'correct' | 'incorrect') => void;
   completeSession: () => void;
   abandonSession: () => void;
+
+  // Actions - Cloud Sync
+  initializeCloudSync: () => Promise<void>;
+  syncFlashcardsToCloud: () => Promise<void>;
+  syncSessionsToCloud: (profile: Profile) => Promise<void>;
 
   // Computed
   getPerformanceStats: (profile?: Profile) => PerformanceStats;
@@ -76,6 +95,109 @@ export const useAppStore = create<AppState>()(
       currentCardIndex: 0,
       isCardFlipped: false,
       sessions: [],
+      cloudSyncEnabled: false,
+      cloudSyncLoading: false,
+      lastSyncedAt: null,
+
+      initializeCloudSync: async () => {
+        if (!isFirebaseConfigured()) {
+          console.log('Firebase not configured, using local storage only');
+          return;
+        }
+
+        set({ cloudSyncLoading: true });
+
+        try {
+          // Load initial data from cloud
+          const [appData, cloudSessions] = await Promise.all([
+            loadAppData(),
+            loadAllSessions(),
+          ]);
+
+          const state = get();
+
+          // If cloud has data, use it; otherwise upload local data
+          if (appData && appData.flashcards.length > 0) {
+            set({
+              flashcards: appData.flashcards,
+              initialized: appData.initialized,
+            });
+          } else if (state.flashcards.length > 0) {
+            // Upload local data to cloud
+            await saveAppData(state.flashcards, state.initialized);
+          }
+
+          // Merge sessions from cloud with local (dedupe by id)
+          if (cloudSessions.length > 0) {
+            const existingIds = new Set(state.sessions.map((s) => s.id));
+            const newSessions = cloudSessions.filter((s) => !existingIds.has(s.id));
+            if (newSessions.length > 0) {
+              set({ sessions: [...state.sessions, ...newSessions] });
+            }
+          } else if (state.sessions.length > 0) {
+            // Upload local sessions to cloud
+            const alexSessions = state.sessions.filter((s) => s.profile === 'Alex');
+            const angusSessions = state.sessions.filter((s) => s.profile === 'Angus');
+            await Promise.all([
+              alexSessions.length > 0 ? saveProfileSessions('Alex', alexSessions) : Promise.resolve(),
+              angusSessions.length > 0 ? saveProfileSessions('Angus', angusSessions) : Promise.resolve(),
+            ]);
+          }
+
+          // Set up real-time listeners for cross-device sync
+          subscribeToAppData((data) => {
+            if (data) {
+              set({
+                flashcards: data.flashcards,
+                initialized: data.initialized,
+                lastSyncedAt: new Date().toISOString(),
+              });
+            }
+          });
+
+          subscribeToProfileSessions('Alex', (sessions) => {
+            const state = get();
+            const nonAlexSessions = state.sessions.filter((s) => s.profile !== 'Alex');
+            set({
+              sessions: [...nonAlexSessions, ...sessions],
+              lastSyncedAt: new Date().toISOString(),
+            });
+          });
+
+          subscribeToProfileSessions('Angus', (sessions) => {
+            const state = get();
+            const nonAngusSessions = state.sessions.filter((s) => s.profile !== 'Angus');
+            set({
+              sessions: [...nonAngusSessions, ...sessions],
+              lastSyncedAt: new Date().toISOString(),
+            });
+          });
+
+          set({
+            cloudSyncEnabled: true,
+            cloudSyncLoading: false,
+            lastSyncedAt: new Date().toISOString(),
+          });
+
+          console.log('Cloud sync initialized successfully');
+        } catch (error) {
+          console.error('Error initializing cloud sync:', error);
+          set({ cloudSyncLoading: false });
+        }
+      },
+
+      syncFlashcardsToCloud: async () => {
+        if (!isFirebaseConfigured()) return;
+        const state = get();
+        await saveAppData(state.flashcards, state.initialized);
+      },
+
+      syncSessionsToCloud: async (profile: Profile) => {
+        if (!isFirebaseConfigured() || profile === 'Guest') return;
+        const state = get();
+        const profileSessions = state.sessions.filter((s) => s.profile === profile);
+        await saveProfileSessions(profile, profileSessions);
+      },
 
       initializeFlashcards: () => {
         const state = get();
@@ -85,6 +207,8 @@ export const useAppStore = create<AppState>()(
             flashcards: seedFlashcards,
             initialized: true,
           });
+          // Sync to cloud after initialization
+          get().syncFlashcardsToCloud();
         }
       },
 
@@ -102,6 +226,9 @@ export const useAppStore = create<AppState>()(
           flashcards: [...state.flashcards, newFlashcard],
         }));
 
+        // Sync to cloud
+        get().syncFlashcardsToCloud();
+
         return newFlashcard;
       },
 
@@ -113,12 +240,18 @@ export const useAppStore = create<AppState>()(
               : f
           ),
         }));
+
+        // Sync to cloud
+        get().syncFlashcardsToCloud();
       },
 
       deleteFlashcard: (id) => {
         set((state) => ({
           flashcards: state.flashcards.filter((f) => f.id !== id),
         }));
+
+        // Sync to cloud
+        get().syncFlashcardsToCloud();
       },
 
       startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => {
@@ -296,6 +429,11 @@ export const useAppStore = create<AppState>()(
             : state.sessions,
           currentSession: completedSession,
         });
+
+        // Sync to cloud
+        if (shouldPersist) {
+          get().syncSessionsToCloud(completedSession.profile);
+        }
       },
 
       abandonSession: () => {

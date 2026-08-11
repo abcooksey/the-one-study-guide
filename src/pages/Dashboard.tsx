@@ -110,6 +110,8 @@ export default function Dashboard() {
   const startNewSession = useAppStore((state) => state.startNewSession);
   const getPerformanceStats = useAppStore((state) => state.getPerformanceStats);
   const currentSession = useAppStore((state) => state.currentSession);
+  const cloudSyncEnabled = useAppStore((state) => state.cloudSyncEnabled);
+  const cloudSyncLoading = useAppStore((state) => state.cloudSyncLoading);
 
   const alexStats = getPerformanceStats('Alex');
   const angusStats = getPerformanceStats('Angus');
@@ -193,9 +195,24 @@ export default function Dashboard() {
           </p>
         )}
 
-        <p className="mt-3 text-charcoal-500 text-sm">
-          {flashcards.length} questions in library
-        </p>
+        <div className="mt-3 flex items-center justify-center gap-3 text-sm">
+          <span className="text-charcoal-500">
+            {flashcards.length} questions in library
+          </span>
+          {cloudSyncLoading ? (
+            <span className="text-brass-600 flex items-center gap-1">
+              <span className="animate-pulse">●</span> Syncing...
+            </span>
+          ) : cloudSyncEnabled ? (
+            <span className="text-green-600 flex items-center gap-1">
+              ● Cloud synced
+            </span>
+          ) : (
+            <span className="text-charcoal-400 flex items-center gap-1">
+              ○ Local only
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Profile Stats */}
