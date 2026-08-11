@@ -154,3 +154,6 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard'];
+
+// Battle types
+export * from './battle';

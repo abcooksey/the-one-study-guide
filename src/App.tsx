@@ -8,6 +8,9 @@ import SessionResults from './pages/SessionResults';
 import FlashcardLibrary from './pages/FlashcardLibrary';
 import AddFlashcard from './pages/AddFlashcard';
 import EditFlashcard from './pages/EditFlashcard';
+import BattleLobby from './pages/BattleLobby';
+import BattleSession from './pages/BattleSession';
+import BattleResults from './pages/BattleResults';
 
 function App() {
   const initializeFlashcards = useAppStore((state) => state.initializeFlashcards);
@@ -32,6 +35,10 @@ function App() {
         <Route path="/library" element={<FlashcardLibrary />} />
         <Route path="/add" element={<AddFlashcard />} />
         <Route path="/edit/:id" element={<EditFlashcard />} />
+        <Route path="/battle" element={<BattleLobby />} />
+        <Route path="/battle/:code" element={<BattleLobby />} />
+        <Route path="/battle/:code/play" element={<BattleSession />} />
+        <Route path="/battle/:code/results" element={<BattleResults />} />
       </Routes>
     </Layout>
   );

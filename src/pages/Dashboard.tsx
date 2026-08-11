@@ -368,6 +368,53 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Battle Mode */}
+      <div className="mb-12">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-6 text-center sm:text-left">
+          Battle Mode
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            to="/battle"
+            className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-forest-50 to-forest-100 border-forest-200"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                ..
+              </div>
+              <div>
+                <h3 className="font-medium text-forest-900 text-lg">Create Battle</h3>
+                <p className="text-sm text-forest-600">
+                  Generate a code and invite a friend
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/battle"
+            className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-brass-50 to-brass-100 border-brass-200"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                ..
+              </div>
+              <div>
+                <h3 className="font-medium text-brass-900 text-lg">Join Battle</h3>
+                <p className="text-sm text-brass-600">
+                  Enter a friend's battle code
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        <p className="text-center text-charcoal-500 text-sm mt-4">
+          Challenge a friend to a real-time trivia battle!
+        </p>
+      </div>
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-6 text-center sm:text-left">
