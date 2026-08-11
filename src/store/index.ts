@@ -6,6 +6,8 @@ import {
   Session,
   SessionAttempt,
   PerformanceStats,
+  DetailedStats,
+  StatBreakdown,
   AttemptStatus,
   Category,
   Difficulty,
@@ -15,6 +17,8 @@ import {
   DifficultyMode,
   FlagReason,
   FlashcardFlag,
+  FILMS,
+  CATEGORIES,
 } from '../types';
 import { createSeedFlashcards } from '../data/seedQuestions';
 import {
@@ -85,6 +89,7 @@ interface AppState {
 
   // Computed
   getPerformanceStats: (profile?: Profile) => PerformanceStats;
+  getDetailedStats: (profile: Profile) => DetailedStats;
   getCurrentAttempt: () => SessionAttempt | null;
   getUnansweredIndices: () => number[];
   canCompleteSession: () => boolean;
@@ -571,6 +576,70 @@ export const useAppStore = create<AppState>()(
           lastRoundAccuracy,
           accuracyTrend,
         };
+      },
+
+      getDetailedStats: (profile: Profile) => {
+        const state = get();
+        const completedSessions = state.sessions.filter(
+          (s) => s.isComplete && s.profile === profile
+        );
+
+        // Initialize tracking maps
+        const filmStats: Map<Film, { correct: number; total: number }> = new Map();
+        const categoryStats: Map<Category, { correct: number; total: number }> = new Map();
+
+        // Initialize with all films and categories
+        FILMS.forEach((film) => filmStats.set(film, { correct: 0, total: 0 }));
+        CATEGORIES.forEach((cat) => categoryStats.set(cat, { correct: 0, total: 0 }));
+
+        // Process all attempts from completed sessions
+        completedSessions.forEach((session) => {
+          session.attempts.forEach((attempt) => {
+            if (attempt.status === 'unanswered') return;
+
+            const flashcard = state.flashcards.find((f) => f.id === attempt.flashcardId);
+            if (!flashcard) return;
+
+            const isCorrect = attempt.status === 'correct';
+
+            // Update film stats
+            const filmStat = filmStats.get(flashcard.film);
+            if (filmStat) {
+              filmStat.total++;
+              if (isCorrect) filmStat.correct++;
+            }
+
+            // Update category stats
+            const catStat = categoryStats.get(flashcard.category);
+            if (catStat) {
+              catStat.total++;
+              if (isCorrect) catStat.correct++;
+            }
+          });
+        });
+
+        // Convert to StatBreakdown arrays, filtering out empty categories
+        const byFilm: StatBreakdown[] = Array.from(filmStats.entries())
+          .filter(([, stats]) => stats.total > 0)
+          .map(([name, stats]) => ({
+            name,
+            correct: stats.correct,
+            total: stats.total,
+            accuracy: Math.round((stats.correct / stats.total) * 100),
+          }))
+          .sort((a, b) => b.total - a.total);
+
+        const byCategory: StatBreakdown[] = Array.from(categoryStats.entries())
+          .filter(([, stats]) => stats.total > 0)
+          .map(([name, stats]) => ({
+            name,
+            correct: stats.correct,
+            total: stats.total,
+            accuracy: Math.round((stats.correct / stats.total) * 100),
+          }))
+          .sort((a, b) => b.total - a.total);
+
+        return { byFilm, byCategory };
       },
 
       getCurrentAttempt: () => {

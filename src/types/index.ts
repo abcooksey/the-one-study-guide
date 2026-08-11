@@ -108,6 +108,18 @@ export interface PerformanceStats {
   accuracyTrend: number[];
 }
 
+export interface StatBreakdown {
+  name: string;
+  correct: number;
+  total: number;
+  accuracy: number;
+}
+
+export interface DetailedStats {
+  byFilm: StatBreakdown[];
+  byCategory: StatBreakdown[];
+}
+
 export const FILMS: Film[] = [
   'The Fellowship of the Ring',
   'The Two Towers',

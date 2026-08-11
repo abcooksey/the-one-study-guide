@@ -4,17 +4,54 @@ import { useAppStore } from '../store';
 import ProfileSelector from '../components/ProfileSelector';
 import DifficultyModeSelector from '../components/DifficultyModeSelector';
 import { getOverallTrend } from '../utils/stats';
-import { Profile, PerformanceStats, DifficultyMode } from '../types';
+import { Profile, PerformanceStats, DifficultyMode, DetailedStats, StatBreakdown } from '../types';
+
+function StatBar({ stat }: { stat: StatBreakdown }) {
+  return (
+    <div className="mb-2">
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-charcoal-700 truncate pr-2">{stat.name}</span>
+        <span className={`font-medium ${
+          stat.accuracy >= 70
+            ? 'text-green-600'
+            : stat.accuracy >= 50
+            ? 'text-brass-600'
+            : 'text-red-600'
+        }`}>
+          {stat.accuracy}%
+        </span>
+      </div>
+      <div className="h-2 bg-parchment-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${
+            stat.accuracy >= 70
+              ? 'bg-green-500'
+              : stat.accuracy >= 50
+              ? 'bg-brass-500'
+              : 'bg-red-500'
+          }`}
+          style={{ width: `${stat.accuracy}%` }}
+        />
+      </div>
+      <div className="text-xs text-charcoal-400 mt-0.5">
+        {stat.correct}/{stat.total} correct
+      </div>
+    </div>
+  );
+}
 
 function ProfileStatsCard({
   name,
   emoji,
   stats,
+  detailedStats,
 }: {
   name: string;
   emoji: string;
   stats: PerformanceStats;
+  detailedStats: DetailedStats;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const trend = getOverallTrend(stats);
 
   if (stats.completedRounds === 0) {
@@ -96,6 +133,56 @@ function ProfileStatsCard({
           ))}
         </div>
       )}
+
+      {/* Expandable details section */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="mt-4 w-full flex items-center justify-center gap-1 text-sm text-brass-600 hover:text-brass-700 transition-colors py-2"
+      >
+        <span>{isExpanded ? 'Hide details' : 'See more details'}</span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {isExpanded && (
+        <div className="mt-4 pt-4 border-t border-parchment-200 space-y-6">
+          {/* By Film */}
+          {detailedStats.byFilm.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-charcoal-800 mb-3">By Film</h4>
+              <div className="space-y-3">
+                {detailedStats.byFilm.map((stat) => (
+                  <StatBar key={stat.name} stat={stat} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* By Category */}
+          {detailedStats.byCategory.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-charcoal-800 mb-3">By Category</h4>
+              <div className="space-y-3">
+                {detailedStats.byCategory.map((stat) => (
+                  <StatBar key={stat.name} stat={stat} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,8 +200,12 @@ export default function Dashboard() {
   const cloudSyncEnabled = useAppStore((state) => state.cloudSyncEnabled);
   const cloudSyncLoading = useAppStore((state) => state.cloudSyncLoading);
 
+  const getDetailedStats = useAppStore((state) => state.getDetailedStats);
+
   const alexStats = getPerformanceStats('Alex');
   const angusStats = getPerformanceStats('Angus');
+  const alexDetailedStats = getDetailedStats('Alex');
+  const angusDetailedStats = getDetailedStats('Angus');
   const hasEnoughCards = flashcards.length >= 20;
 
   const handleStartClick = () => {
@@ -222,8 +313,8 @@ export default function Dashboard() {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <ProfileStatsCard name="Alex" emoji="👑" stats={alexStats} />
-          <ProfileStatsCard name="Angus" emoji="⚔️" stats={angusStats} />
+          <ProfileStatsCard name="Alex" emoji="👑" stats={alexStats} detailedStats={alexDetailedStats} />
+          <ProfileStatsCard name="Angus" emoji="⚔️" stats={angusStats} detailedStats={angusDetailedStats} />
         </div>
       </div>
 
