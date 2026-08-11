@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import ProfileSelector from '../components/ProfileSelector';
+import DifficultyModeSelector from '../components/DifficultyModeSelector';
 import { getOverallTrend } from '../utils/stats';
-import { Profile, PerformanceStats } from '../types';
+import { Profile, PerformanceStats, DifficultyMode } from '../types';
 
 function ProfileStatsCard({
   name,
@@ -102,6 +103,8 @@ function ProfileStatsCard({
 export default function Dashboard() {
   const navigate = useNavigate();
   const [showProfileSelector, setShowProfileSelector] = useState(false);
+  const [showDifficultySelector, setShowDifficultySelector] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
 
   const flashcards = useAppStore((state) => state.flashcards);
   const startNewSession = useAppStore((state) => state.startNewSession);
@@ -117,11 +120,24 @@ export default function Dashboard() {
   };
 
   const handleProfileSelect = (profile: Profile) => {
+    setSelectedProfile(profile);
     setShowProfileSelector(false);
-    const success = startNewSession(profile);
+    setShowDifficultySelector(true);
+  };
+
+  const handleDifficultySelect = (mode: DifficultyMode) => {
+    if (!selectedProfile) return;
+    setShowDifficultySelector(false);
+    const success = startNewSession(selectedProfile, mode);
     if (success) {
       navigate('/session');
     }
+    setSelectedProfile(null);
+  };
+
+  const handleBackToProfile = () => {
+    setShowDifficultySelector(false);
+    setShowProfileSelector(true);
   };
 
   const handleResumeSession = () => {
@@ -251,6 +267,14 @@ export default function Dashboard() {
         isOpen={showProfileSelector}
         onSelect={handleProfileSelect}
         onCancel={() => setShowProfileSelector(false)}
+      />
+
+      {/* Difficulty Mode Selector Modal */}
+      <DifficultyModeSelector
+        isOpen={showDifficultySelector}
+        profile={selectedProfile || 'Guest'}
+        onSelect={handleDifficultySelect}
+        onBack={handleBackToProfile}
       />
     </div>
   );

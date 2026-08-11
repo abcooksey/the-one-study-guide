@@ -12,6 +12,7 @@ import {
   Film,
   Edition,
   Profile,
+  DifficultyMode,
 } from '../types';
 import { createSeedFlashcards } from '../data/seedQuestions';
 
@@ -48,7 +49,7 @@ interface AppState {
   deleteFlashcard: (id: string) => void;
 
   // Actions - Session
-  startNewSession: (profile: Profile) => boolean;
+  startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => boolean;
   flipCard: () => void;
   unflipCard: () => void;
   goToCard: (index: number) => void;
@@ -120,7 +121,7 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      startNewSession: (profile: Profile) => {
+      startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => {
         const state = get();
         const availableFlashcards = state.flashcards;
 
@@ -128,9 +129,65 @@ export const useAppStore = create<AppState>()(
           return false;
         }
 
-        // Randomly select 20 unique flashcards
-        const shuffled = [...availableFlashcards].sort(() => Math.random() - 0.5);
-        const selectedCards = shuffled.slice(0, QUESTIONS_PER_ROUND);
+        // Group flashcards by difficulty
+        const easyCards = availableFlashcards.filter((f) => f.difficulty === 'Easy');
+        const mediumCards = availableFlashcards.filter((f) => f.difficulty === 'Medium');
+        const hardCards = availableFlashcards.filter((f) => f.difficulty === 'Hard');
+
+        // Shuffle each difficulty pool
+        const shuffleArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
+        const shuffledEasy = shuffleArray(easyCards);
+        const shuffledMedium = shuffleArray(mediumCards);
+        const shuffledHard = shuffleArray(hardCards);
+
+        let selectedCards: Flashcard[] = [];
+
+        if (difficultyMode === 'progressive') {
+          // Equal mix: 7 easy, 7 medium, 6 hard - ordered easy → medium → hard
+          const easy = shuffledEasy.slice(0, 7);
+          const medium = shuffledMedium.slice(0, 7);
+          const hard = shuffledHard.slice(0, 6);
+          selectedCards = [...easy, ...medium, ...hard];
+
+          // If we don't have enough of each difficulty, fill with random from others
+          if (selectedCards.length < QUESTIONS_PER_ROUND) {
+            const allShuffled = shuffleArray(availableFlashcards);
+            const selectedIds = new Set(selectedCards.map((c) => c.id));
+            for (const card of allShuffled) {
+              if (!selectedIds.has(card.id)) {
+                selectedCards.push(card);
+                if (selectedCards.length >= QUESTIONS_PER_ROUND) break;
+              }
+            }
+          }
+        } else if (difficultyMode === 'warmup') {
+          // 5 easy first, then 15 random from remaining
+          const easyWarmup = shuffledEasy.slice(0, 5);
+          const usedIds = new Set(easyWarmup.map((c) => c.id));
+
+          // Get remaining cards (excluding the 5 easy warmup cards)
+          const remaining = shuffleArray(
+            availableFlashcards.filter((f) => !usedIds.has(f.id))
+          ).slice(0, 15);
+
+          selectedCards = [...easyWarmup, ...remaining];
+
+          // If we don't have enough easy cards, just use random
+          if (selectedCards.length < QUESTIONS_PER_ROUND) {
+            const allShuffled = shuffleArray(availableFlashcards);
+            const selectedIds = new Set(selectedCards.map((c) => c.id));
+            for (const card of allShuffled) {
+              if (!selectedIds.has(card.id)) {
+                selectedCards.push(card);
+                if (selectedCards.length >= QUESTIONS_PER_ROUND) break;
+              }
+            }
+          }
+        } else {
+          // Random mode: completely random selection
+          const shuffled = shuffleArray(availableFlashcards);
+          selectedCards = shuffled.slice(0, QUESTIONS_PER_ROUND);
+        }
 
         const attempts: SessionAttempt[] = selectedCards.map((card) => ({
           flashcardId: card.id,
@@ -140,6 +197,7 @@ export const useAppStore = create<AppState>()(
         const newSession: Session = {
           id: uuidv4(),
           profile,
+          difficultyMode,
           startedAt: new Date().toISOString(),
           attempts,
           isComplete: false,

@@ -13,6 +13,7 @@ describe('calculateSessionAccuracy', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'unanswered' },
@@ -27,6 +28,7 @@ describe('calculateSessionAccuracy', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'correct' },
@@ -42,6 +44,7 @@ describe('calculateSessionAccuracy', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'incorrect' },
@@ -56,6 +59,7 @@ describe('calculateSessionAccuracy', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'correct' },
@@ -72,6 +76,7 @@ describe('calculateSessionAccuracy', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'correct' },
@@ -89,6 +94,7 @@ describe('calculateSessionCorrect', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'correct' },
@@ -107,6 +113,7 @@ describe('calculateSessionIncorrect', () => {
     const session: Session = {
       id: '1',
       profile: 'Alex',
+      difficultyMode: 'random',
       startedAt: new Date().toISOString(),
       attempts: [
         { flashcardId: 'a', status: 'correct' },

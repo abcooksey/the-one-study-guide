@@ -29,6 +29,26 @@ export type Profile = 'Alex' | 'Angus' | 'Guest';
 
 export const PROFILES: Profile[] = ['Alex', 'Angus', 'Guest'];
 
+export type DifficultyMode = 'progressive' | 'warmup' | 'random';
+
+export const DIFFICULTY_MODES: { value: DifficultyMode; label: string; description: string }[] = [
+  {
+    value: 'progressive',
+    label: 'Progressive',
+    description: 'Equal mix starting with easy, then medium, then hard questions',
+  },
+  {
+    value: 'warmup',
+    label: 'Warm Up',
+    description: '5 easy questions to start, then a random mix of all difficulties',
+  },
+  {
+    value: 'random',
+    label: 'Random Mix',
+    description: 'Completely random mix of easy, medium, and hard questions',
+  },
+];
+
 export interface Flashcard {
   id: string;
   question: string;
@@ -55,6 +75,7 @@ export interface SessionAttempt {
 export interface Session {
   id: string;
   profile: Profile;
+  difficultyMode: DifficultyMode;
   startedAt: string;
   completedAt?: string;
   attempts: SessionAttempt[];

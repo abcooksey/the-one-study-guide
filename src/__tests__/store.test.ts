@@ -121,13 +121,14 @@ describe('Flashcard Store', () => {
     it('starts a new session with 20 unique cards', () => {
       const store = useAppStore.getState();
 
-      const success = store.startNewSession('Alex');
+      const success = store.startNewSession('Alex', 'random');
       expect(success).toBe(true);
 
       const updatedStore = useAppStore.getState();
       expect(updatedStore.currentSession).not.toBeNull();
       expect(updatedStore.currentSession?.attempts.length).toBe(20);
       expect(updatedStore.currentSession?.profile).toBe('Alex');
+      expect(updatedStore.currentSession?.difficultyMode).toBe('random');
 
       // Check uniqueness
       const cardIds = updatedStore.currentSession!.attempts.map(
@@ -142,7 +143,7 @@ describe('Flashcard Store', () => {
       useAppStore.setState({ flashcards: [], initialized: true });
 
       const store = useAppStore.getState();
-      const success = store.startNewSession('Alex');
+      const success = store.startNewSession('Alex', 'random');
 
       expect(success).toBe(false);
       expect(useAppStore.getState().currentSession).toBeNull();
@@ -150,7 +151,7 @@ describe('Flashcard Store', () => {
 
     it('marks answer and locks it for the session', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // Flip and mark correct
       store.flipCard();
@@ -168,7 +169,7 @@ describe('Flashcard Store', () => {
 
     it('tracks unanswered questions', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // All should be unanswered initially
       const unanswered = store.getUnansweredIndices();
@@ -184,7 +185,7 @@ describe('Flashcard Store', () => {
 
     it('cannot complete session with unanswered questions', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       expect(store.canCompleteSession()).toBe(false);
 
@@ -197,7 +198,7 @@ describe('Flashcard Store', () => {
 
     it('completes session when all questions answered', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // Answer all 20 questions
       for (let i = 0; i < 20; i++) {
@@ -217,7 +218,7 @@ describe('Flashcard Store', () => {
 
     it('allows navigation between cards', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       expect(useAppStore.getState().currentCardIndex).toBe(0);
 
@@ -236,7 +237,7 @@ describe('Flashcard Store', () => {
 
     it('preserves answer when navigating back to card', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // Answer first card
       store.flipCard();
@@ -255,7 +256,7 @@ describe('Flashcard Store', () => {
 
     it('allows skipping and returning to unanswered cards', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // Skip first card
       store.goToNextCard();
@@ -299,7 +300,7 @@ describe('Flashcard Store', () => {
 
     it('calculates stats after completing sessions', () => {
       const store = useAppStore.getState();
-      store.startNewSession('Alex');
+      store.startNewSession('Alex', 'random');
 
       // Complete first session: 16 correct, 4 incorrect
       for (let i = 0; i < 20; i++) {
