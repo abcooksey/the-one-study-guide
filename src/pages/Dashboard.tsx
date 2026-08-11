@@ -376,7 +376,7 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
-            to="/battle"
+            to="/battle?mode=create"
             className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-forest-50 to-forest-100 border-forest-200"
           >
             <div className="flex items-center gap-4">
@@ -393,7 +393,7 @@ export default function Dashboard() {
           </Link>
 
           <Link
-            to="/battle"
+            to="/battle?mode=join"
             className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-brass-50 to-brass-100 border-brass-200"
           >
             <div className="flex items-center gap-4">

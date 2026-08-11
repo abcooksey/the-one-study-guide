@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBattleStore } from '../store/battleStore';
 import { useAppStore } from '../store';
@@ -17,10 +17,19 @@ type LobbyMode = 'choose' | 'create' | 'join';
 export default function BattleLobby() {
   const navigate = useNavigate();
   const { code: urlCode } = useParams<{ code: string }>();
+  const [searchParams] = useSearchParams();
+  const modeParam = searchParams.get('mode');
 
-  const [lobbyMode, setLobbyMode] = useState<LobbyMode>(urlCode ? 'join' : 'choose');
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [pendingMode, setPendingMode] = useState<'create' | 'join'>('create');
+  // Determine initial mode based on URL
+  const getInitialMode = (): LobbyMode => {
+    if (urlCode) return 'join';
+    if (modeParam === 'join') return 'join';
+    return 'choose'; // 'create' mode will show modal instead
+  };
+
+  const [lobbyMode, setLobbyMode] = useState<LobbyMode>(getInitialMode());
+  const [showNameModal, setShowNameModal] = useState(modeParam === 'create');
+  const [pendingMode, setPendingMode] = useState<'create' | 'join'>(modeParam === 'create' ? 'create' : 'create');
   const [joinCode, setJoinCode] = useState(urlCode || '');
 
   const flashcards = useAppStore((state) => state.flashcards);
@@ -47,6 +56,15 @@ export default function BattleLobby() {
       setJoinCode(urlCode);
     }
   }, [urlCode, battle]);
+
+  // Handle cancel from name modal - go back to home if came from direct link
+  const handleNameModalCancel = () => {
+    setShowNameModal(false);
+    if (modeParam) {
+      // User came directly from Dashboard, go back home
+      navigate('/');
+    }
+  };
 
   // Navigate to battle when it starts
   useEffect(() => {
@@ -232,7 +250,7 @@ export default function BattleLobby() {
             />
 
             <button
-              onClick={() => setLobbyMode('choose')}
+              onClick={() => modeParam ? navigate('/') : setLobbyMode('choose')}
               className="mt-6 w-full text-center text-charcoal-500 hover:text-charcoal-700 text-sm"
             >
               Back
@@ -290,7 +308,7 @@ export default function BattleLobby() {
         isOpen={showNameModal}
         mode={pendingMode}
         onSubmit={handleNameSubmit}
-        onCancel={() => setShowNameModal(false)}
+        onCancel={handleNameModalCancel}
       />
 
       {/* Countdown overlay */}
