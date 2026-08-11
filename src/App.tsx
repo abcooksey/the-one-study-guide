@@ -10,6 +10,7 @@ import AddFlashcard from './pages/AddFlashcard';
 import EditFlashcard from './pages/EditFlashcard';
 import BattleLobby from './pages/BattleLobby';
 import BattleSession from './pages/BattleSession';
+import BattleWaiting from './pages/BattleWaiting';
 import BattleResults from './pages/BattleResults';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
         <Route path="/battle" element={<BattleLobby />} />
         <Route path="/battle/:code" element={<BattleLobby />} />
         <Route path="/battle/:code/play" element={<BattleSession />} />
+        <Route path="/battle/:code/waiting" element={<BattleWaiting />} />
         <Route path="/battle/:code/results" element={<BattleResults />} />
       </Routes>
     </Layout>

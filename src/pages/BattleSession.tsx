@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useBattleStore } from '../store/battleStore';
 import { useAppStore } from '../store';
@@ -13,9 +13,9 @@ export default function BattleSession() {
   const { code } = useParams<{ code: string }>();
 
   const [showAbandonDialog, setShowAbandonDialog] = useState(false);
-  const [showUnansweredDialog, setShowUnansweredDialog] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const hasAutoFinished = useRef(false);
 
   const {
     battle,
@@ -47,6 +47,17 @@ export default function BattleSession() {
       navigate(`/battle/${code}/results`);
     }
   }, [battle, battle?.status, code, navigate]);
+
+  // Auto-finish when all questions are answered
+  useEffect(() => {
+    if (canComplete && !hasAutoFinished.current && currentPlayer && !currentPlayer.finishedAt) {
+      hasAutoFinished.current = true;
+      finishBattle().then(() => {
+        // Navigate to waiting page
+        navigate(`/battle/${code}/waiting`);
+      });
+    }
+  }, [canComplete, currentPlayer, finishBattle, code, navigate]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -144,21 +155,6 @@ export default function BattleSession() {
     }
   };
 
-  const handleFinish = async () => {
-    if (canComplete) {
-      await finishBattle();
-    } else {
-      setShowUnansweredDialog(true);
-    }
-  };
-
-  const handleGoToFirstUnanswered = () => {
-    if (unansweredIndices.length > 0) {
-      handleGoToCard(unansweredIndices[0]);
-    }
-    setShowUnansweredDialog(false);
-  };
-
   const handleAbandon = () => {
     leaveBattle();
     navigate('/');
@@ -202,14 +198,12 @@ export default function BattleSession() {
             </h1>
           </div>
 
-          <button
-            onClick={handleFinish}
-            className={`btn-sm ${
-              canComplete ? 'btn-primary' : 'btn-secondary'
-            }`}
-          >
-            {canComplete ? 'Finish' : `${unansweredIndices.length} left`}
-          </button>
+          <div className="text-sm font-medium text-charcoal-600">
+            {unansweredIndices.length > 0
+              ? `${unansweredIndices.length} left`
+              : 'Finishing...'
+            }
+          </div>
         </div>
       </div>
 
@@ -303,27 +297,6 @@ export default function BattleSession() {
         onCancel={() => setShowAbandonDialog(false)}
       />
 
-      {/* Unanswered Dialog */}
-      <ConfirmDialog
-        isOpen={showUnansweredDialog}
-        title="Unanswered Questions"
-        message={
-          <div>
-            <p className="mb-2">
-              You have {unansweredIndices.length} unanswered question
-              {unansweredIndices.length !== 1 ? 's' : ''}.
-            </p>
-            <p className="text-sm text-charcoal-500">
-              You must answer all questions before finishing the battle.
-            </p>
-          </div>
-        }
-        confirmLabel="Go to Unanswered"
-        cancelLabel="Close"
-        confirmVariant="primary"
-        onConfirm={handleGoToFirstUnanswered}
-        onCancel={() => setShowUnansweredDialog(false)}
-      />
     </div>
   );
 }
