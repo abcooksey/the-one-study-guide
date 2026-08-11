@@ -106,11 +106,17 @@ export default function Flashcard({
                 </div>
               )}
 
-              <p className="text-sm text-charcoal-500">
-                {flashcard.film}
-                {flashcard.edition !== 'Both / General' &&
-                  ` · ${flashcard.edition}`}
-              </p>
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                  flashcard.difficulty === 'Easy'
+                    ? 'bg-green-100 text-green-800'
+                    : flashcard.difficulty === 'Medium'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-red-100 text-red-800'
+                }`}
+              >
+                {flashcard.difficulty}
+              </span>
             </div>
           </div>
 
