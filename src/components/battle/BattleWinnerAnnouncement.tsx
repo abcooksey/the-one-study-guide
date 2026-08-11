@@ -120,7 +120,7 @@ export default function BattleWinnerAnnouncement({
           className={`relative ${isTie ? 'order-1' : winner === player1 ? 'order-1' : 'order-2'}`}
         >
           <div className="bg-gradient-to-b from-brass-400 to-brass-500 rounded-t-xl px-6 py-4 min-w-[120px]">
-            <span className="text-4xl block mb-1">{winner ? winner.emoji : player1.emoji}</span>
+            <img src={winner ? winner.emoji : player1.emoji} alt={winner ? winner.name : player1.name} className="w-16 h-16 object-contain mx-auto mb-1" />
             <span className="text-white font-bold text-sm block">
               {winner ? winner.name : player1.name}
             </span>
@@ -139,7 +139,7 @@ export default function BattleWinnerAnnouncement({
         {!isTie && loser && (
           <div className="order-2">
             <div className="bg-gradient-to-b from-parchment-300 to-parchment-400 rounded-t-xl px-6 py-4 min-w-[120px]">
-              <span className="text-4xl block mb-1">{loser.emoji}</span>
+              <img src={loser.emoji} alt={loser.name} className="w-16 h-16 object-contain mx-auto mb-1" />
               <span className="text-charcoal-700 font-bold text-sm block">
                 {loser.name}
               </span>
@@ -157,7 +157,7 @@ export default function BattleWinnerAnnouncement({
         {isTie && (
           <div className="order-2">
             <div className="bg-gradient-to-b from-brass-400 to-brass-500 rounded-t-xl px-6 py-4 min-w-[120px]">
-              <span className="text-4xl block mb-1">{player2.emoji}</span>
+              <img src={player2.emoji} alt={player2.name} className="w-16 h-16 object-contain mx-auto mb-1" />
               <span className="text-white font-bold text-sm block">{player2.name}</span>
               <span className="text-brass-100 text-xs">{player2Stats.correct} correct</span>
             </div>
@@ -178,7 +178,7 @@ export default function BattleWinnerAnnouncement({
         {/* Player 1 Stats */}
         <div className="bg-white rounded-xl p-4 border border-parchment-200">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-xl">{player1.emoji}</span>
+            <img src={player1.emoji} alt={player1.name} className="w-8 h-8 object-contain" />
             <span className="font-medium text-charcoal-800">{player1.name}</span>
           </div>
           <div className="space-y-2 text-sm">
@@ -204,7 +204,7 @@ export default function BattleWinnerAnnouncement({
         {/* Player 2 Stats */}
         <div className="bg-white rounded-xl p-4 border border-parchment-200">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-xl">{player2.emoji}</span>
+            <img src={player2.emoji} alt={player2.name} className="w-8 h-8 object-contain" />
             <span className="font-medium text-charcoal-800">{player2.name}</span>
           </div>
           <div className="space-y-2 text-sm">

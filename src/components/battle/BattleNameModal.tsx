@@ -9,9 +9,23 @@ interface BattleNameModalProps {
   onCancel: () => void;
 }
 
-const BATTLE_EMOJIS = [
-  '..', '..', '..', '..', '..', '..', '..', '..',
-  '..', '..', '..', '..', '..', '..', '..', '..',
+const BATTLE_ICONS = [
+  { name: 'Frodo', path: '/images/icons/icon-frodo.png' },
+  { name: 'Sam', path: '/images/icons/icon-sam.png' },
+  { name: 'Merry', path: '/images/icons/icon-merry.png' },
+  { name: 'Pippin', path: '/images/icons/icon-pippin.png' },
+  { name: 'Gandalf', path: '/images/icons/icon-gandalf.png' },
+  { name: 'Aragorn', path: '/images/icons/icon-aragorn.png' },
+  { name: 'Legolas', path: '/images/icons/icon-legolas.png' },
+  { name: 'Gimli', path: '/images/icons/icon-gimli.png' },
+  { name: 'Boromir', path: '/images/icons/icon-boromir.png' },
+  { name: 'Faramir', path: '/images/icons/icon-faramir.png' },
+  { name: 'Eowyn', path: '/images/icons/icon-eyowen.png' },
+  { name: 'Theoden', path: '/images/icons/icon-theoden.png' },
+  { name: 'Galadriel', path: '/images/icons/icon-galadriel.png' },
+  { name: 'Treebeard', path: '/images/icons/icon-treebeard.png' },
+  { name: 'Gollum', path: '/images/icons/icon-gollum.png' },
+  { name: 'Saruman', path: '/images/icons/icon-sarumon.png' },
 ];
 
 export default function BattleNameModal({
@@ -21,12 +35,12 @@ export default function BattleNameModal({
   onCancel,
 }: BattleNameModalProps) {
   const [name, setName] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState(BATTLE_EMOJIS[0]);
+  const [selectedIcon, setSelectedIcon] = useState(BATTLE_ICONS[0]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onSubmit({ name: name.trim(), emoji: selectedEmoji });
+      onSubmit({ name: name.trim(), emoji: selectedIcon.path });
     }
   };
 
@@ -48,7 +62,7 @@ export default function BattleNameModal({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative bg-gradient-to-b from-parchment-50 to-parchment-100 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-parchment-300"
+            className="relative bg-gradient-to-b from-parchment-50 to-parchment-100 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-parchment-300 max-h-[90vh] overflow-y-auto"
           >
             <h2 className="text-2xl font-serif font-bold text-charcoal-900 text-center mb-2">
               {mode === 'create' ? 'Create Battle' : 'Join Battle'}
@@ -74,26 +88,31 @@ export default function BattleNameModal({
                 />
               </div>
 
-              {/* Emoji selector */}
+              {/* Icon selector */}
               <div>
                 <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                  Choose Your Icon
+                  Choose Your Character
                 </label>
-                <div className="grid grid-cols-8 gap-2">
-                  {BATTLE_EMOJIS.map((emoji) => (
+                <div className="grid grid-cols-4 gap-3">
+                  {BATTLE_ICONS.map((icon) => (
                     <button
-                      key={emoji}
+                      key={icon.name}
                       type="button"
-                      onClick={() => setSelectedEmoji(emoji)}
+                      onClick={() => setSelectedIcon(icon)}
                       className={`
-                        text-2xl p-2 rounded-lg transition-all
-                        ${selectedEmoji === emoji
-                          ? 'bg-forest-100 border-2 border-forest-400 scale-110'
+                        p-2 rounded-xl transition-all flex flex-col items-center
+                        ${selectedIcon.name === icon.name
+                          ? 'bg-forest-100 border-2 border-forest-400 scale-105'
                           : 'bg-parchment-100 border-2 border-transparent hover:bg-parchment-200'
                         }
                       `}
+                      title={icon.name}
                     >
-                      {emoji}
+                      <img
+                        src={icon.path}
+                        alt={icon.name}
+                        className="w-12 h-12 object-contain"
+                      />
                     </button>
                   ))}
                 </div>
@@ -101,10 +120,15 @@ export default function BattleNameModal({
 
               {/* Preview */}
               <div className="bg-white rounded-xl p-4 border border-parchment-200 text-center">
-                <span className="text-3xl">{selectedEmoji}</span>
-                <p className="font-medium text-charcoal-900 mt-1">
+                <img
+                  src={selectedIcon.path}
+                  alt={selectedIcon.name}
+                  className="w-16 h-16 object-contain mx-auto"
+                />
+                <p className="font-medium text-charcoal-900 mt-2">
                   {name.trim() || 'Your Name'}
                 </p>
+                <p className="text-sm text-charcoal-500">{selectedIcon.name}</p>
               </div>
 
               {/* Actions */}

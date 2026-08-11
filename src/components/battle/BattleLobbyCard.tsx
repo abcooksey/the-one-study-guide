@@ -54,7 +54,7 @@ export default function BattleLobbyCard({
         </motion.div>
       )}
 
-      <div className="text-5xl mb-3">{player.emoji}</div>
+      <img src={player.emoji} alt={player.name} className="w-20 h-20 object-contain mx-auto mb-3" />
       <h3 className="text-xl font-bold text-charcoal-900">{player.name}</h3>
 
       {isCurrentPlayer && (

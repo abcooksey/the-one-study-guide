@@ -27,7 +27,7 @@ export default function OpponentProgress({
       <div className="flex items-center gap-3">
         {/* Opponent avatar */}
         <div className="flex items-center gap-2">
-          <span className="text-xl">{opponent.emoji}</span>
+          <img src={opponent.emoji} alt={opponent.name} className="w-8 h-8 object-contain" />
           <span className="font-medium text-charcoal-700 text-sm">
             {opponent.name}
           </span>

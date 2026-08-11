@@ -132,7 +132,7 @@ export default function BattleWaiting() {
               className="bg-white/80 rounded-xl p-6 border border-parchment-200"
             >
               <div className="flex items-center justify-center gap-3 mb-4">
-                <span className="text-2xl">{opponent.emoji}</span>
+                <img src={opponent.emoji} alt={opponent.name} className="w-12 h-12 object-contain" />
                 <span className="font-medium text-charcoal-800">{opponent.name}</span>
               </div>
 
