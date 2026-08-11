@@ -30,6 +30,26 @@ export const isFirebaseConfigured = (): boolean => {
   return Boolean(apiKey && apiKey !== 'your-api-key');
 };
 
+// Remove undefined values from an object (Firestore doesn't support undefined)
+const sanitizeForFirestore = <T>(obj: T): T => {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore) as T;
+  }
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        result[key] = sanitizeForFirestore(value);
+      }
+    }
+    return result as T;
+  }
+  return obj;
+};
+
 // Save app data (flashcards)
 export const saveAppData = async (
   flashcards: Flashcard[],
@@ -39,8 +59,10 @@ export const saveAppData = async (
 
   try {
     const docRef = doc(db, APP_DATA_DOC);
+    // Sanitize flashcards to remove undefined values (like removed flags)
+    const sanitizedFlashcards = sanitizeForFirestore(flashcards);
     await setDoc(docRef, {
-      flashcards,
+      flashcards: sanitizedFlashcards,
       initialized,
       lastUpdated: new Date().toISOString(),
     } as AppData);

@@ -1,17 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import Flashcard from '../components/Flashcard';
 import ProgressBar from '../components/ProgressBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FlagIssueModal from '../components/FlagIssueModal';
+import EncouragementModal from '../components/EncouragementModal';
 import { FlagReason } from '../types';
+
+interface EncouragementData {
+  milestone: 50 | 75;
+  isDoingWell: boolean;
+  accuracy: number;
+}
 
 export default function TriviaSession() {
   const navigate = useNavigate();
   const [showAbandonDialog, setShowAbandonDialog] = useState(false);
   const [showUnansweredDialog, setShowUnansweredDialog] = useState(false);
   const [showFlagModal, setShowFlagModal] = useState(false);
+  const [encouragementData, setEncouragementData] = useState<EncouragementData | null>(null);
+  const shownMilestonesRef = useRef<Set<50 | 75>>(new Set());
 
   const currentSession = useAppStore((state) => state.currentSession);
   const currentCardIndex = useAppStore((state) => state.currentCardIndex);
@@ -43,6 +52,37 @@ export default function TriviaSession() {
       navigate('/results');
     }
   }, [currentSession?.isComplete, navigate]);
+
+  // Track milestones and show encouragement modal
+  useEffect(() => {
+    if (!currentSession) return;
+
+    const attempts = currentSession.attempts;
+    const answered = attempts.filter((a) => a.status !== 'unanswered').length;
+    const correct = attempts.filter((a) => a.status === 'correct').length;
+
+    // Check for 50% milestone (10 out of 20)
+    if (answered === 10 && !shownMilestonesRef.current.has(50)) {
+      const accuracy = (correct / 10) * 100;
+      setEncouragementData({
+        milestone: 50,
+        isDoingWell: accuracy >= 70,
+        accuracy,
+      });
+      shownMilestonesRef.current.add(50);
+    }
+
+    // Check for 75% milestone (15 out of 20)
+    if (answered === 15 && !shownMilestonesRef.current.has(75)) {
+      const accuracy = (correct / 15) * 100;
+      setEncouragementData({
+        milestone: 75,
+        isDoingWell: accuracy >= 70,
+        accuracy,
+      });
+      shownMilestonesRef.current.add(75);
+    }
+  }, [currentSession?.attempts]);
 
   if (!currentSession) {
     return null;
@@ -307,6 +347,17 @@ export default function TriviaSession() {
         onSubmit={handleFlagSubmit}
         onCancel={() => setShowFlagModal(false)}
       />
+
+      {/* Encouragement Modal */}
+      {encouragementData && (
+        <EncouragementModal
+          isOpen={true}
+          milestone={encouragementData.milestone}
+          isDoingWell={encouragementData.isDoingWell}
+          accuracy={encouragementData.accuracy}
+          onClose={() => setEncouragementData(null)}
+        />
+      )}
     </div>
   );
 }
