@@ -364,17 +364,31 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
 
   startCountdownTimer: () => {
     // Clear any existing countdown
-    const { countdownInterval } = get();
+    const { countdownInterval, battle } = get();
     if (countdownInterval) {
       clearInterval(countdownInterval);
     }
 
-    set({ countdownSeconds: COUNTDOWN_SECONDS });
+    if (!battle?.countdownStartedAt) {
+      set({ countdownSeconds: COUNTDOWN_SECONDS });
+      return;
+    }
+
+    // Calculate remaining time based on server timestamp for synchronization
+    const countdownStartTime = new Date(battle.countdownStartedAt).getTime();
+    const calculateRemainingSeconds = () => {
+      const elapsed = (Date.now() - countdownStartTime) / 1000;
+      return Math.max(0, Math.ceil(COUNTDOWN_SECONDS - elapsed));
+    };
+
+    // Set initial countdown based on elapsed time
+    set({ countdownSeconds: calculateRemainingSeconds() });
 
     const interval = setInterval(async () => {
-      const { countdownSeconds, battle } = get();
+      const { battle } = get();
+      const remaining = calculateRemainingSeconds();
 
-      if (countdownSeconds <= 1) {
+      if (remaining <= 0) {
         clearInterval(interval);
         set({ countdownInterval: null, countdownSeconds: 0 });
 
@@ -383,9 +397,9 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
           await startBattle(battle.id);
         }
       } else {
-        set({ countdownSeconds: countdownSeconds - 1 });
+        set({ countdownSeconds: remaining });
       }
-    }, 1000);
+    }, 100); // Check more frequently for accuracy
 
     set({ countdownInterval: interval });
   },
