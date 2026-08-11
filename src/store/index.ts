@@ -48,6 +48,7 @@ interface AppState {
   // Flashcards
   flashcards: Flashcard[];
   initialized: boolean;
+  deletedSeedIds: string[]; // Track deleted seed questions so they don't get re-added
 
   // Current Session
   currentSession: Session | null;
@@ -102,6 +103,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       flashcards: [],
       initialized: false,
+      deletedSeedIds: [],
       currentSession: null,
       currentCardIndex: 0,
       isCardFlipped: false,
@@ -132,10 +134,11 @@ export const useAppStore = create<AppState>()(
             set({
               flashcards: appData.flashcards,
               initialized: appData.initialized,
+              deletedSeedIds: appData.deletedSeedIds || [],
             });
           } else if (state.flashcards.length > 0) {
             // Upload local data to cloud
-            await saveAppData(state.flashcards, state.initialized);
+            await saveAppData(state.flashcards, state.initialized, state.deletedSeedIds);
           }
 
           // Merge sessions from cloud with local (dedupe by id)
@@ -161,6 +164,7 @@ export const useAppStore = create<AppState>()(
               set({
                 flashcards: data.flashcards,
                 initialized: data.initialized,
+                deletedSeedIds: data.deletedSeedIds || [],
                 lastSyncedAt: new Date().toISOString(),
               });
             }
@@ -200,7 +204,7 @@ export const useAppStore = create<AppState>()(
       syncFlashcardsToCloud: async () => {
         if (!isFirebaseConfigured()) return;
         const state = get();
-        await saveAppData(state.flashcards, state.initialized);
+        await saveAppData(state.flashcards, state.initialized, state.deletedSeedIds);
       },
 
       syncSessionsToCloud: async (profile: Profile) => {
@@ -228,8 +232,14 @@ export const useAppStore = create<AppState>()(
             state.flashcards.map((f) => f.question.toLowerCase().trim())
           );
 
+          // Also check against deleted seeds so they don't get re-added
+          const deletedSeeds = new Set(state.deletedSeedIds);
+
           const newQuestions = seedFlashcards.filter(
-            (seed) => !existingQuestions.has(seed.question.toLowerCase().trim())
+            (seed) => {
+              const questionKey = seed.question.toLowerCase().trim();
+              return !existingQuestions.has(questionKey) && !deletedSeeds.has(questionKey);
+            }
           );
 
           if (newQuestions.length > 0) {
@@ -277,9 +287,18 @@ export const useAppStore = create<AppState>()(
       },
 
       deleteFlashcard: (id) => {
-        set((state) => ({
+        const state = get();
+        const flashcardToDelete = state.flashcards.find((f) => f.id === id);
+
+        // Track the question text so seed questions don't get re-added
+        const deletedSeedIds = flashcardToDelete
+          ? [...state.deletedSeedIds, flashcardToDelete.question.toLowerCase().trim()]
+          : state.deletedSeedIds;
+
+        set({
           flashcards: state.flashcards.filter((f) => f.id !== id),
-        }));
+          deletedSeedIds,
+        });
 
         // Sync to cloud
         get().syncFlashcardsToCloud();
@@ -746,6 +765,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         flashcards: state.flashcards,
         initialized: state.initialized,
+        deletedSeedIds: state.deletedSeedIds,
         sessions: state.sessions,
       }),
     }

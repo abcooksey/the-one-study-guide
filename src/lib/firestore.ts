@@ -13,9 +13,10 @@ const APP_DATA_DOC = 'app/data';
 const getProfileDoc = (profile: Profile) => `profiles/${profile}`;
 
 // Types for Firestore documents
-interface AppData {
+export interface AppData {
   flashcards: Flashcard[];
   initialized: boolean;
+  deletedSeedIds?: string[]; // Track deleted seed questions
   lastUpdated: string;
 }
 
@@ -53,7 +54,8 @@ const sanitizeForFirestore = <T>(obj: T): T => {
 // Save app data (flashcards)
 export const saveAppData = async (
   flashcards: Flashcard[],
-  initialized: boolean
+  initialized: boolean,
+  deletedSeedIds: string[] = []
 ): Promise<void> => {
   if (!isFirebaseConfigured()) return;
 
@@ -64,6 +66,7 @@ export const saveAppData = async (
     await setDoc(docRef, {
       flashcards: sanitizedFlashcards,
       initialized,
+      deletedSeedIds,
       lastUpdated: new Date().toISOString(),
     } as AppData);
   } catch (error) {
