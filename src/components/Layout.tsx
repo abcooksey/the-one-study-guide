@@ -15,12 +15,12 @@ export default function Layout({ children }: LayoutProps) {
         <header className="bg-forest-700 text-white shadow-lg">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              <Link to="/" className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full border-2 border-brass-400 flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-brass-300" />
+              <Link to="/" className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-full border-2 border-brass-400 flex items-center justify-center aspect-square">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-brass-300 aspect-square" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-serif font-bold tracking-wide">
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-serif font-bold tracking-wide truncate">
                     The One Study Guide
                   </h1>
                   <p className="text-xs text-forest-200 hidden sm:block">

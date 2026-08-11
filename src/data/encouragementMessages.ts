@@ -34,8 +34,8 @@ export const fiftyPercentMessages: MessagePool = {
       imageAlt: "Aragorn being heroic",
     },
     {
-      text: "A wizard is never wrong, nor is he right too early...",
-      subtext: "But you? You're right exactly when you mean to be!",
+      text: "A Wizard is never late, nor does he make mistakes during LOTR Trivia...",
+      subtext: "Are you a wizard? Because your correct answers arrive exactly when you mean them to!",
       imageUrl: "/images/gimli-success.gif",
       imageAlt: "Gimli celebrating",
     },
