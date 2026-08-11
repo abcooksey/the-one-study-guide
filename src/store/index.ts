@@ -274,13 +274,27 @@ export const useAppStore = create<AppState>()(
       },
 
       updateFlashcard: (id, input) => {
-        set((state) => ({
+        const state = get();
+        const flashcardToUpdate = state.flashcards.find((f) => f.id === id);
+
+        // If the question text is being changed, track the original text
+        // so the seed question doesn't get re-added
+        let deletedSeedIds = state.deletedSeedIds;
+        if (flashcardToUpdate && input.question && input.question !== flashcardToUpdate.question) {
+          const originalKey = flashcardToUpdate.question.toLowerCase().trim();
+          if (!deletedSeedIds.includes(originalKey)) {
+            deletedSeedIds = [...deletedSeedIds, originalKey];
+          }
+        }
+
+        set({
           flashcards: state.flashcards.map((f) =>
             f.id === id
               ? { ...f, ...input, updatedAt: new Date().toISOString() }
               : f
           ),
-        }));
+          deletedSeedIds,
+        });
 
         // Sync to cloud
         get().syncFlashcardsToCloud();
