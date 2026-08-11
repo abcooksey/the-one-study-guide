@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-parchment: #f9f5ec;
+    --color-forest: #445944;
+    --color-brass: #c48e42;
+    --color-charcoal: #3d3d3d;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-parchment-100 text-charcoal-900 font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-forest-600 text-white hover:bg-forest-700 focus:ring-forest-500 shadow-sm hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply btn bg-parchment-200 text-charcoal-800 hover:bg-parchment-300 focus:ring-parchment-400 border border-parchment-400;
+  }
+
+  .btn-success {
+    @apply btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  .btn-brass {
+    @apply btn bg-brass-500 text-white hover:bg-brass-600 focus:ring-brass-400 shadow-sm hover:shadow-md;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-parchment-200 text-charcoal-700;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-card p-6 border border-parchment-200;
+  }
+
+  .input {
+    @apply w-full px-4 py-2 rounded-lg border border-parchment-400 bg-white text-charcoal-900 placeholder-charcoal-400 focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent transition-all;
+  }
+
+  .select {
+    @apply input appearance-none cursor-pointer;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-charcoal-700 mb-1;
+  }
+
+  .textarea {
+    @apply input min-h-[100px] resize-y;
+  }
+
+  /* Flashcard styles */
+  .flashcard-container {
+    perspective: 1000px;
+  }
+
+  .flashcard {
+    @apply relative w-full transition-transform duration-500;
+    transform-style: preserve-3d;
+  }
+
+  .flashcard.flipped {
+    transform: rotateY(180deg);
+  }
+
+  .flashcard-face {
+    @apply absolute inset-0 w-full h-full rounded-2xl p-8 flex flex-col;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .flashcard-front {
+    @apply bg-gradient-to-br from-parchment-50 to-parchment-100 border-2 border-parchment-300 shadow-flashcard;
+  }
+
+  .flashcard-back {
+    @apply bg-gradient-to-br from-forest-50 to-forest-100 border-2 border-forest-300 shadow-flashcard;
+    transform: rotateY(180deg);
+  }
+
+  /* Progress bar segments */
+  .progress-segment {
+    @apply h-2 rounded-full transition-all duration-300;
+  }
+
+  .progress-segment.correct {
+    @apply bg-green-500;
+  }
+
+  .progress-segment.incorrect {
+    @apply bg-red-500;
+  }
+
+  .progress-segment.unanswered {
+    @apply bg-parchment-300;
+  }
+
+  .progress-segment.current {
+    @apply ring-2 ring-brass-400 ring-offset-1;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply bg-white rounded-lg p-4 shadow-sm border border-parchment-200;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-charcoal-900;
+  }
+
+  .stat-label {
+    @apply text-sm text-charcoal-500 mt-1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .flashcard {
+      transition: none;
+    }
+
+    .flashcard.flipped {
+      transform: none;
+    }
+
+    .flashcard.flipped .flashcard-front {
+      display: none;
+    }
+
+    .flashcard.flipped .flashcard-back {
+      transform: none;
+    }
+  }
+}
