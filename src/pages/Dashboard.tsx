@@ -45,14 +45,21 @@ function ProfileStatsCard({
   emoji,
   stats,
   detailedStats,
+  onPracticeWeakAreas,
 }: {
   name: string;
   emoji: string;
   stats: PerformanceStats;
   detailedStats: DetailedStats;
+  onPracticeWeakAreas: () => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const trend = getOverallTrend(stats);
+
+  // Check if there are weak areas to practice (accuracy < 70%)
+  const hasWeakAreas =
+    detailedStats.byFilm.some((s) => s.accuracy < 70) ||
+    detailedStats.byCategory.some((s) => s.accuracy < 70);
 
   if (stats.completedRounds === 0) {
     return (
@@ -132,6 +139,30 @@ function ProfileStatsCard({
             />
           ))}
         </div>
+      )}
+
+      {/* Practice Weak Areas button */}
+      {hasWeakAreas && (
+        <button
+          onClick={onPracticeWeakAreas}
+          className="mt-4 w-full btn-secondary flex items-center justify-center gap-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          Practice Weak Areas
+        </button>
       )}
 
       {/* Expandable details section */}
@@ -237,6 +268,13 @@ export default function Dashboard() {
     navigate('/session');
   };
 
+  const handlePracticeWeakAreas = (profile: Profile) => {
+    const success = startNewSession(profile, 'weakness');
+    if (success) {
+      navigate('/session');
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Hero Section */}
@@ -313,8 +351,20 @@ export default function Dashboard() {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <ProfileStatsCard name="Alex" emoji="👑" stats={alexStats} detailedStats={alexDetailedStats} />
-          <ProfileStatsCard name="Angus" emoji="⚔️" stats={angusStats} detailedStats={angusDetailedStats} />
+          <ProfileStatsCard
+            name="Alex"
+            emoji="👑"
+            stats={alexStats}
+            detailedStats={alexDetailedStats}
+            onPracticeWeakAreas={() => handlePracticeWeakAreas('Alex')}
+          />
+          <ProfileStatsCard
+            name="Angus"
+            emoji="⚔️"
+            stats={angusStats}
+            detailedStats={angusDetailedStats}
+            onPracticeWeakAreas={() => handlePracticeWeakAreas('Angus')}
+          />
         </div>
       </div>
 

@@ -12,6 +12,7 @@ const modeEmojis: Record<DifficultyMode, string> = {
   progressive: '📈',
   warmup: '🔥',
   random: '🎲',
+  weakness: '🎯',
 };
 
 export default function DifficultyModeSelector({

@@ -385,6 +385,51 @@ export const useAppStore = create<AppState>()(
               }
             }
           }
+        } else if (difficultyMode === 'weakness') {
+          // Weakness mode: prioritize questions from weak categories and films
+          const detailedStats = get().getDetailedStats(profile);
+
+          // Get weak areas (accuracy below 70%, sorted by accuracy ascending)
+          const weakFilms = detailedStats.byFilm
+            .filter((s) => s.accuracy < 70)
+            .sort((a, b) => a.accuracy - b.accuracy)
+            .map((s) => s.name);
+
+          const weakCategories = detailedStats.byCategory
+            .filter((s) => s.accuracy < 70)
+            .sort((a, b) => a.accuracy - b.accuracy)
+            .map((s) => s.name);
+
+          // Score each flashcard based on weakness (lower accuracy = higher priority)
+          const scoredCards = availableFlashcards.map((card) => {
+            let score = 0;
+
+            // Add score based on film weakness (weak films get higher scores)
+            const filmIndex = weakFilms.indexOf(card.film);
+            if (filmIndex !== -1) {
+              score += (weakFilms.length - filmIndex) * 10; // Most weak = highest score
+            }
+
+            // Add score based on category weakness
+            const catIndex = weakCategories.indexOf(card.category);
+            if (catIndex !== -1) {
+              score += (weakCategories.length - catIndex) * 10;
+            }
+
+            // Add small random factor to mix things up
+            score += Math.random() * 5;
+
+            return { card, score };
+          });
+
+          // Sort by score descending (highest weakness priority first)
+          scoredCards.sort((a, b) => b.score - a.score);
+
+          // Take top 20 questions
+          selectedCards = scoredCards.slice(0, QUESTIONS_PER_ROUND).map((sc) => sc.card);
+
+          // Shuffle the selected cards so weak areas are mixed throughout
+          selectedCards = shuffleArray(selectedCards);
         } else {
           // Random mode: completely random selection
           const shuffled = shuffleArray(availableFlashcards);

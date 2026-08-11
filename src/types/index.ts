@@ -44,7 +44,7 @@ export interface FlashcardFlag {
 
 export const PROFILES: Profile[] = ['Alex', 'Angus', 'Guest'];
 
-export type DifficultyMode = 'progressive' | 'warmup' | 'random';
+export type DifficultyMode = 'progressive' | 'warmup' | 'random' | 'weakness';
 
 export const DIFFICULTY_MODES: { value: DifficultyMode; label: string; description: string }[] = [
   {
@@ -61,6 +61,11 @@ export const DIFFICULTY_MODES: { value: DifficultyMode; label: string; descripti
     value: 'random',
     label: 'Random Mix',
     description: 'Completely random mix of easy, medium, and hard questions',
+  },
+  {
+    value: 'weakness',
+    label: 'Practice Weak Areas',
+    description: 'Focus on categories and films you struggle with most',
   },
 ];
 
