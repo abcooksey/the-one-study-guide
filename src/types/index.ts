@@ -85,7 +85,7 @@ export interface Flashcard {
   flag?: FlashcardFlag;
 }
 
-export type AttemptStatus = 'correct' | 'incorrect' | 'unanswered';
+export type AttemptStatus = 'correct' | 'incorrect' | 'unanswered' | 'flagged';
 
 export interface SessionAttempt {
   flashcardId: string;

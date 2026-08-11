@@ -7,6 +7,7 @@ import {
   calculateSessionAccuracy,
   calculateSessionCorrect,
   calculateSessionIncorrect,
+  calculateSessionFlagged,
   getTrendDescription,
 } from '../utils/stats';
 
@@ -43,6 +44,7 @@ export default function SessionResults() {
   const sessionAccuracy = calculateSessionAccuracy(currentSession);
   const sessionCorrect = calculateSessionCorrect(currentSession);
   const sessionIncorrect = calculateSessionIncorrect(currentSession);
+  const sessionFlagged = calculateSessionFlagged(currentSession);
   const trendDescription = !isGuest ? getTrendDescription(stats) : null;
 
   const incorrectAttempts = currentSession.attempts.filter(
@@ -142,7 +144,11 @@ export default function SessionResults() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8"
+          className={`grid gap-4 mb-8 ${
+            sessionFlagged > 0 || !isGuest
+              ? 'grid-cols-2 sm:grid-cols-4'
+              : 'grid-cols-2'
+          }`}
         >
           <StatCard
             value={sessionCorrect}
@@ -154,6 +160,13 @@ export default function SessionResults() {
             label="Incorrect"
             color="danger"
           />
+          {sessionFlagged > 0 && (
+            <StatCard
+              value={sessionFlagged}
+              label="Flagged"
+              color="warning"
+            />
+          )}
           {!isGuest && (
             <>
               <StatCard

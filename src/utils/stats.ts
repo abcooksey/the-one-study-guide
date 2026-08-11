@@ -1,11 +1,14 @@
 import { Session, PerformanceStats } from '../types';
 
 export const calculateSessionAccuracy = (session: Session): number => {
-  const answered = session.attempts.filter((a) => a.status !== 'unanswered');
-  if (answered.length === 0) return 0;
+  // Only count correct and incorrect answers (exclude unanswered and flagged)
+  const scoredAttempts = session.attempts.filter(
+    (a) => a.status === 'correct' || a.status === 'incorrect'
+  );
+  if (scoredAttempts.length === 0) return 0;
 
-  const correct = answered.filter((a) => a.status === 'correct').length;
-  return Math.round((correct / answered.length) * 100);
+  const correct = scoredAttempts.filter((a) => a.status === 'correct').length;
+  return Math.round((correct / scoredAttempts.length) * 100);
 };
 
 export const calculateSessionCorrect = (session: Session): number => {
@@ -14,6 +17,10 @@ export const calculateSessionCorrect = (session: Session): number => {
 
 export const calculateSessionIncorrect = (session: Session): number => {
   return session.attempts.filter((a) => a.status === 'incorrect').length;
+};
+
+export const calculateSessionFlagged = (session: Session): number => {
+  return session.attempts.filter((a) => a.status === 'flagged').length;
 };
 
 export const getTrendDescription = (stats: PerformanceStats): string | null => {

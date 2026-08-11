@@ -79,6 +79,7 @@ interface AppState {
   goToNextCard: () => void;
   goToPreviousCard: () => void;
   markAnswer: (status: 'correct' | 'incorrect') => void;
+  markAttemptFlagged: () => void;
   completeSession: () => void;
   abandonSession: () => void;
 
@@ -518,6 +519,28 @@ export const useAppStore = create<AppState>()(
         });
       },
 
+      markAttemptFlagged: () => {
+        const state = get();
+        if (!state.currentSession) return;
+
+        const attempt = state.currentSession.attempts[state.currentCardIndex];
+
+        // Can flag regardless of current status (unanswered, correct, or incorrect)
+        const updatedAttempts = [...state.currentSession.attempts];
+        updatedAttempts[state.currentCardIndex] = {
+          ...attempt,
+          status: 'flagged',
+          answeredAt: new Date().toISOString(),
+        };
+
+        set({
+          currentSession: {
+            ...state.currentSession,
+            attempts: updatedAttempts,
+          },
+        });
+      },
+
       completeSession: () => {
         const state = get();
         if (!state.currentSession) return;
@@ -640,7 +663,8 @@ export const useAppStore = create<AppState>()(
         // Process all attempts from completed sessions
         completedSessions.forEach((session) => {
           session.attempts.forEach((attempt) => {
-            if (attempt.status === 'unanswered') return;
+            // Only count correct and incorrect (exclude unanswered and flagged)
+            if (attempt.status !== 'correct' && attempt.status !== 'incorrect') return;
 
             const flashcard = state.flashcards.find((f) => f.id === attempt.flashcardId);
             if (!flashcard) return;

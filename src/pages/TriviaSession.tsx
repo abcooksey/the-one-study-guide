@@ -35,6 +35,7 @@ export default function TriviaSession() {
   const goToNextCard = useAppStore((state) => state.goToNextCard);
   const goToPreviousCard = useAppStore((state) => state.goToPreviousCard);
   const markAnswer = useAppStore((state) => state.markAnswer);
+  const markAttemptFlagged = useAppStore((state) => state.markAttemptFlagged);
   const completeSession = useAppStore((state) => state.completeSession);
   const abandonSession = useAppStore((state) => state.abandonSession);
   const flagFlashcard = useAppStore((state) => state.flagFlashcard);
@@ -143,7 +144,10 @@ export default function TriviaSession() {
 
   const handleFlagSubmit = (reason: FlagReason, description?: string) => {
     if (!currentFlashcard || !currentSession) return;
+    // Flag the flashcard in the library
     flagFlashcard(currentFlashcard.id, reason, description, currentSession.profile);
+    // Mark this attempt as flagged so it doesn't count towards the session score
+    markAttemptFlagged();
     setShowFlagModal(false);
     // Auto-advance to next card after flagging
     if (!isLastCard) {

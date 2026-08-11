@@ -35,6 +35,7 @@ export default function ProgressBar({
               progress-segment flex-1 h-3 rounded-sm transition-all
               ${attempt.status === 'correct' ? 'bg-green-500' : ''}
               ${attempt.status === 'incorrect' ? 'bg-red-500' : ''}
+              ${attempt.status === 'flagged' ? 'bg-orange-400' : ''}
               ${attempt.status === 'unanswered' ? 'bg-parchment-300 hover:bg-parchment-400' : ''}
               ${index === currentIndex ? 'ring-2 ring-brass-400 ring-offset-1 scale-110' : ''}
             `}
@@ -44,7 +45,7 @@ export default function ProgressBar({
         ))}
       </div>
 
-      <div className="flex items-center justify-center gap-4 mt-3">
+      <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-charcoal-500">
           <div className="w-3 h-3 rounded-sm bg-green-500" />
           <span>Correct</span>
@@ -52,6 +53,10 @@ export default function ProgressBar({
         <div className="flex items-center gap-1.5 text-xs text-charcoal-500">
           <div className="w-3 h-3 rounded-sm bg-red-500" />
           <span>Incorrect</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-charcoal-500">
+          <div className="w-3 h-3 rounded-sm bg-orange-400" />
+          <span>Flagged</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-charcoal-500">
           <div className="w-3 h-3 rounded-sm bg-parchment-300" />
