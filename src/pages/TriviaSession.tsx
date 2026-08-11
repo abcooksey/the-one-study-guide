@@ -5,7 +5,7 @@ import Flashcard from '../components/Flashcard';
 import ProgressBar from '../components/ProgressBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FlagIssueModal from '../components/FlagIssueModal';
-import EncouragementModal from '../components/EncouragementModal';
+import EncouragementCard from '../components/EncouragementCard';
 import { FlagReason } from '../types';
 
 interface EncouragementData {
@@ -151,10 +151,24 @@ export default function TriviaSession() {
     }
   };
 
+  // Handle continuing from encouragement card
+  const handleEncouragementContinue = () => {
+    setEncouragementData(null);
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // If encouragement card is showing, Enter/Space dismisses it
+      if (encouragementData) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          handleEncouragementContinue();
+        }
         return;
       }
 
@@ -191,7 +205,7 @@ export default function TriviaSession() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCardFlipped, currentAttempt, goToNextCard, goToPreviousCard, flipCard]);
+  }, [isCardFlipped, currentAttempt, goToNextCard, goToPreviousCard, flipCard, encouragementData]);
 
   if (!currentFlashcard) {
     return (
@@ -249,17 +263,26 @@ export default function TriviaSession() {
         </div>
       </div>
 
-      {/* Flashcard */}
+      {/* Flashcard or Encouragement Card */}
       <div className="flex-1 flex items-center justify-center px-4 pb-8">
-        <Flashcard
-          flashcard={currentFlashcard}
-          isFlipped={isCardFlipped}
-          onFlip={flipCard}
-          status={currentAttempt?.status ?? 'unanswered'}
-          onMarkCorrect={handleMarkCorrect}
-          onMarkIncorrect={handleMarkIncorrect}
-          onFlag={handleFlagQuestion}
-        />
+        {encouragementData ? (
+          <EncouragementCard
+            milestone={encouragementData.milestone}
+            isDoingWell={encouragementData.isDoingWell}
+            accuracy={encouragementData.accuracy}
+            onContinue={handleEncouragementContinue}
+          />
+        ) : (
+          <Flashcard
+            flashcard={currentFlashcard}
+            isFlipped={isCardFlipped}
+            onFlip={flipCard}
+            status={currentAttempt?.status ?? 'unanswered'}
+            onMarkCorrect={handleMarkCorrect}
+            onMarkIncorrect={handleMarkIncorrect}
+            onFlag={handleFlagQuestion}
+          />
+        )}
       </div>
 
       {/* Navigation */}
@@ -347,17 +370,6 @@ export default function TriviaSession() {
         onSubmit={handleFlagSubmit}
         onCancel={() => setShowFlagModal(false)}
       />
-
-      {/* Encouragement Modal */}
-      {encouragementData && (
-        <EncouragementModal
-          isOpen={true}
-          milestone={encouragementData.milestone}
-          isDoingWell={encouragementData.isDoingWell}
-          accuracy={encouragementData.accuracy}
-          onClose={() => setEncouragementData(null)}
-        />
-      )}
     </div>
   );
 }
