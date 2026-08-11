@@ -206,14 +206,34 @@ export const useAppStore = create<AppState>()(
 
       initializeFlashcards: () => {
         const state = get();
+        const seedFlashcards = createSeedFlashcards();
+
         if (!state.initialized || state.flashcards.length === 0) {
-          const seedFlashcards = createSeedFlashcards();
+          // First time initialization - load all seed questions
           set({
             flashcards: seedFlashcards,
             initialized: true,
           });
           // Sync to cloud after initialization
           get().syncFlashcardsToCloud();
+        } else {
+          // Already initialized - check for new seed questions and merge them
+          const existingQuestions = new Set(
+            state.flashcards.map((f) => f.question.toLowerCase().trim())
+          );
+
+          const newQuestions = seedFlashcards.filter(
+            (seed) => !existingQuestions.has(seed.question.toLowerCase().trim())
+          );
+
+          if (newQuestions.length > 0) {
+            set({
+              flashcards: [...state.flashcards, ...newQuestions],
+            });
+            // Sync to cloud after adding new questions
+            get().syncFlashcardsToCloud();
+            console.log(`Added ${newQuestions.length} new seed questions to the library.`);
+          }
         }
       },
 
