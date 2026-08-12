@@ -65,7 +65,7 @@ export default function BattleLeaderboard() {
               <th className="px-4 py-2 text-center">Wins</th>
               <th className="px-4 py-2 text-center">Acc%</th>
               <th className="px-4 py-2 text-center">Streak</th>
-              <th className="px-4 py-2 text-center">Best</th>
+              <th className="px-4 py-2 text-center">Best Streak</th>
             </tr>
           </thead>
           <tbody>
