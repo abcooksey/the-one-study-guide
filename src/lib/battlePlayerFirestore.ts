@@ -196,7 +196,7 @@ export async function updatePlayerStats(
 }
 
 /**
- * Subscribe to leaderboard changes for real-time updates
+ * Subscribe to leaderboard changes for real-time updates (limited)
  */
 export function subscribeToLeaderboard(
   callback: (entries: LeaderboardEntry[]) => void,
@@ -233,6 +233,47 @@ export function subscribeToLeaderboard(
     );
   } catch (error) {
     console.error('Error setting up leaderboard subscription:', error);
+    return null;
+  }
+}
+
+/**
+ * Subscribe to ALL players for full leaderboard with pagination
+ */
+export function subscribeToAllLeaderboard(
+  callback: (entries: LeaderboardEntry[]) => void
+): Unsubscribe | null {
+  if (!isFirebaseConfigured()) return null;
+
+  try {
+    const playersRef = collection(db, BATTLE_PLAYERS_COLLECTION);
+    const q = query(playersRef, orderBy('wins', 'desc'));
+
+    return onSnapshot(
+      q,
+      (querySnapshot) => {
+        const entries: LeaderboardEntry[] = [];
+        let rank = 1;
+        querySnapshot.forEach((doc) => {
+          const player = doc.data() as BattlePlayerProfile;
+          // Only include players who have played at least one battle
+          if (player.totalBattles > 0) {
+            const correctnessPercent =
+              player.totalAnswered > 0
+                ? Math.round((player.totalCorrect / player.totalAnswered) * 100)
+                : 0;
+            entries.push({ rank: rank++, player, correctnessPercent });
+          }
+        });
+        callback(entries);
+      },
+      (error) => {
+        console.error('Error subscribing to all leaderboard:', error);
+        callback([]);
+      }
+    );
+  } catch (error) {
+    console.error('Error setting up all leaderboard subscription:', error);
     return null;
   }
 }
