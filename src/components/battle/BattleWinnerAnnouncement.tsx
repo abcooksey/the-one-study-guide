@@ -1,13 +1,11 @@
 import { motion } from 'framer-motion';
-import { BattlePlayer, WinnerResult, BattleStats } from '../../types/battle';
+import { BattlePlayer, BattleStats, PlayerKey } from '../../types/battle';
 
 interface BattleWinnerAnnouncementProps {
-  winnerId: WinnerResult;
-  player1: BattlePlayer;
-  player2: BattlePlayer;
-  currentPlayerKey: 'player1' | 'player2';
-  player1Stats: BattleStats;
-  player2Stats: BattleStats;
+  rankings: PlayerKey[];  // Ordered 1st to last
+  players: Record<PlayerKey, BattlePlayer | null>;
+  playerStats: Record<PlayerKey, BattleStats | null>;
+  currentPlayerKey: PlayerKey;
 }
 
 const LOTR_WIN_MESSAGES = [
@@ -26,12 +24,14 @@ const LOTR_LOSE_MESSAGES = [
   "As Gandalf said: 'All we have to decide is what to do with the time that is given us.' Time to study!",
 ];
 
-const LOTR_TIE_MESSAGES = [
-  "A perfect balance! Like Legolas and Gimli, you are evenly matched!",
-  "Neither fellowship prevailed - a true battle of equals!",
-  "Even the Palantir could not have predicted this draw!",
-  "The Valar have decreed a tie! Your knowledge is perfectly matched!",
-];
+const PLACEMENT_LABELS = ['1st', '2nd', '3rd', '4th'] as const;
+const PLACEMENT_COLORS = {
+  1: { bg: 'bg-gradient-to-b from-brass-400 to-brass-500', text: 'text-white', podium: 'bg-brass-600' },
+  2: { bg: 'bg-gradient-to-b from-parchment-300 to-parchment-400', text: 'text-charcoal-700', podium: 'bg-parchment-500' },
+  3: { bg: 'bg-gradient-to-b from-amber-600 to-amber-700', text: 'text-white', podium: 'bg-amber-800' },
+  4: { bg: 'bg-gradient-to-b from-charcoal-300 to-charcoal-400', text: 'text-white', podium: 'bg-charcoal-500' },
+};
+const PODIUM_HEIGHTS = ['h-24', 'h-16', 'h-12', 'h-8'];
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -41,29 +41,29 @@ function formatTime(ms: number): string {
 }
 
 export default function BattleWinnerAnnouncement({
-  winnerId,
-  player1,
-  player2,
+  rankings,
+  players,
+  playerStats,
   currentPlayerKey,
-  player1Stats,
-  player2Stats,
 }: BattleWinnerAnnouncementProps) {
-  const isCurrentPlayerWinner =
-    winnerId === currentPlayerKey ||
-    (winnerId === 'tie' && false);
-
-  const isTie = winnerId === 'tie';
-
-  const winner = winnerId === 'player1' ? player1 : winnerId === 'player2' ? player2 : null;
-  const loser = winnerId === 'player1' ? player2 : winnerId === 'player2' ? player1 : null;
+  // Determine current player's placement
+  const currentPlayerRank = rankings.indexOf(currentPlayerKey);
+  const isCurrentPlayerWinner = currentPlayerRank === 0;
+  const playerCount = rankings.length;
 
   const getMessage = () => {
-    const messages = isTie
-      ? LOTR_TIE_MESSAGES
-      : isCurrentPlayerWinner
-      ? LOTR_WIN_MESSAGES
-      : LOTR_LOSE_MESSAGES;
+    const messages = isCurrentPlayerWinner ? LOTR_WIN_MESSAGES : LOTR_LOSE_MESSAGES;
     return messages[Math.floor(Math.random() * messages.length)];
+  };
+
+  // Get placement info for rendering
+  const getPlacementInfo = (rank: number) => {
+    const placement = (rank + 1) as 1 | 2 | 3 | 4;
+    return {
+      label: PLACEMENT_LABELS[rank],
+      colors: PLACEMENT_COLORS[placement],
+      podiumHeight: PODIUM_HEIGHTS[rank],
+    };
   };
 
   return (
@@ -79,7 +79,7 @@ export default function BattleWinnerAnnouncement({
         transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
         className="text-7xl mb-4"
       >
-        {isTie ? '...' : isCurrentPlayerWinner ? '...' : '...'}
+        {isCurrentPlayerWinner ? '...' : '...'}
       </motion.div>
 
       {/* Result Heading */}
@@ -88,14 +88,16 @@ export default function BattleWinnerAnnouncement({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className={`text-3xl sm:text-4xl font-serif font-bold mb-4 ${
-          isTie
-            ? 'text-brass-600'
-            : isCurrentPlayerWinner
-            ? 'text-forest-600'
-            : 'text-charcoal-700'
+          isCurrentPlayerWinner ? 'text-forest-600' : 'text-charcoal-700'
         }`}
       >
-        {isTie ? "It's a Tie!" : isCurrentPlayerWinner ? 'Victory!' : 'Defeat'}
+        {isCurrentPlayerWinner
+          ? 'Victory!'
+          : currentPlayerRank === 1
+            ? '2nd Place!'
+            : currentPlayerRank === 2
+              ? '3rd Place!'
+              : '4th Place!'}
       </motion.h1>
 
       {/* LOTR Message */}
@@ -113,57 +115,67 @@ export default function BattleWinnerAnnouncement({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8 }}
-        className="flex justify-center items-end gap-4 mb-8"
+        className="mb-8"
       >
-        {/* 1st Place */}
-        <div
-          className={`relative ${isTie ? 'order-1' : winner === player1 ? 'order-1' : 'order-2'}`}
-        >
-          <div className="bg-gradient-to-b from-brass-400 to-brass-500 rounded-t-xl px-6 py-4 min-w-[120px]">
-            <img src={winner ? winner.emoji : player1.emoji} alt={winner ? winner.name : player1.name} className="w-16 h-16 object-contain mx-auto mb-1" />
-            <span className="text-white font-bold text-sm block">
-              {winner ? winner.name : player1.name}
-            </span>
-            <span className="text-brass-100 text-xs">
-              {winner
-                ? `${winnerId === 'player1' ? player1Stats.correct : player2Stats.correct} correct`
-                : `${player1Stats.correct} correct`}
-            </span>
-          </div>
-          <div className="bg-brass-600 h-24 flex items-center justify-center">
-            <span className="text-3xl font-bold text-white">1st</span>
-          </div>
-        </div>
+        {/* 1st Place - Large and centered */}
+        {rankings.length > 0 && (() => {
+          const winnerKey = rankings[0];
+          const winner = players[winnerKey];
+          const winnerStats = playerStats[winnerKey];
+          const { colors, podiumHeight } = getPlacementInfo(0);
 
-        {/* 2nd Place */}
-        {!isTie && loser && (
-          <div className="order-2">
-            <div className="bg-gradient-to-b from-parchment-300 to-parchment-400 rounded-t-xl px-6 py-4 min-w-[120px]">
-              <img src={loser.emoji} alt={loser.name} className="w-16 h-16 object-contain mx-auto mb-1" />
-              <span className="text-charcoal-700 font-bold text-sm block">
-                {loser.name}
-              </span>
-              <span className="text-charcoal-500 text-xs">
-                {winnerId === 'player1' ? player2Stats.correct : player1Stats.correct} correct
-              </span>
-            </div>
-            <div className="bg-parchment-500 h-16 flex items-center justify-center">
-              <span className="text-2xl font-bold text-charcoal-600">2nd</span>
-            </div>
-          </div>
-        )}
+          if (!winner) return null;
 
-        {/* Tie - Show both at same level */}
-        {isTie && (
-          <div className="order-2">
-            <div className="bg-gradient-to-b from-brass-400 to-brass-500 rounded-t-xl px-6 py-4 min-w-[120px]">
-              <img src={player2.emoji} alt={player2.name} className="w-16 h-16 object-contain mx-auto mb-1" />
-              <span className="text-white font-bold text-sm block">{player2.name}</span>
-              <span className="text-brass-100 text-xs">{player2Stats.correct} correct</span>
+          return (
+            <div className="flex justify-center mb-4">
+              <div className="text-center">
+                <div className={`${colors.bg} rounded-t-xl px-8 py-4 min-w-[140px]`}>
+                  <img src={winner.emoji} alt={winner.name} className="w-20 h-20 object-contain mx-auto mb-2" />
+                  <span className={`${colors.text} font-bold text-lg block`}>
+                    {winner.name}
+                  </span>
+                  <span className={`${colors.text} opacity-80 text-sm`}>
+                    {winnerStats?.correct ?? 0} correct
+                  </span>
+                </div>
+                <div className={`${colors.podium} ${podiumHeight} flex items-center justify-center`}>
+                  <span className="text-4xl font-bold text-white">1st</span>
+                </div>
+              </div>
             </div>
-            <div className="bg-brass-600 h-24 flex items-center justify-center">
-              <span className="text-3xl font-bold text-white">1st</span>
-            </div>
+          );
+        })()}
+
+        {/* 2nd, 3rd, 4th Place - Row below */}
+        {rankings.length > 1 && (
+          <div className={`flex justify-center items-end gap-3 ${
+            playerCount === 2 ? 'max-w-xs mx-auto' : playerCount === 3 ? 'max-w-md mx-auto' : 'max-w-2xl mx-auto'
+          }`}>
+            {rankings.slice(1).map((key, index) => {
+              const rank = index + 1; // 1, 2, or 3 (for 2nd, 3rd, 4th place)
+              const player = players[key];
+              const stats = playerStats[key];
+              const { label, colors, podiumHeight } = getPlacementInfo(rank);
+
+              if (!player) return null;
+
+              return (
+                <div key={key} className="text-center flex-1 max-w-[120px]">
+                  <div className={`${colors.bg} rounded-t-xl px-4 py-3`}>
+                    <img src={player.emoji} alt={player.name} className="w-12 h-12 object-contain mx-auto mb-1" />
+                    <span className={`${colors.text} font-bold text-sm block truncate`}>
+                      {player.name}
+                    </span>
+                    <span className={`${colors.text} opacity-80 text-xs`}>
+                      {stats?.correct ?? 0} correct
+                    </span>
+                  </div>
+                  <div className={`${colors.podium} ${podiumHeight} flex items-center justify-center`}>
+                    <span className="text-xl font-bold text-white">{label}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </motion.div>
@@ -173,59 +185,57 @@ export default function BattleWinnerAnnouncement({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
-        className="grid grid-cols-2 gap-6 max-w-lg mx-auto"
+        className={`grid gap-4 max-w-3xl mx-auto ${
+          playerCount === 2
+            ? 'grid-cols-2'
+            : playerCount === 3
+              ? 'grid-cols-3'
+              : 'grid-cols-2 lg:grid-cols-4'
+        }`}
       >
-        {/* Player 1 Stats */}
-        <div className="bg-white rounded-xl p-4 border border-parchment-200">
-          <div className="flex items-center gap-2 mb-3">
-            <img src={player1.emoji} alt={player1.name} className="w-8 h-8 object-contain" />
-            <span className="font-medium text-charcoal-800">{player1.name}</span>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Correct</span>
-              <span className="font-medium text-green-600">{player1Stats.correct}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Incorrect</span>
-              <span className="font-medium text-red-600">{player1Stats.incorrect}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Accuracy</span>
-              <span className="font-medium">{player1Stats.accuracy}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Time</span>
-              <span className="font-medium">{formatTime(player1Stats.totalTime)}</span>
-            </div>
-          </div>
-        </div>
+        {rankings.map((key) => {
+          const player = players[key];
+          const stats = playerStats[key];
 
-        {/* Player 2 Stats */}
-        <div className="bg-white rounded-xl p-4 border border-parchment-200">
-          <div className="flex items-center gap-2 mb-3">
-            <img src={player2.emoji} alt={player2.name} className="w-8 h-8 object-contain" />
-            <span className="font-medium text-charcoal-800">{player2.name}</span>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Correct</span>
-              <span className="font-medium text-green-600">{player2Stats.correct}</span>
+          if (!player || !stats) return null;
+
+          return (
+            <div
+              key={key}
+              className={`bg-white rounded-xl p-4 border ${
+                key === currentPlayerKey
+                  ? 'border-forest-300 ring-2 ring-forest-200'
+                  : 'border-parchment-200'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <img src={player.emoji} alt={player.name} className="w-8 h-8 object-contain" />
+                <span className="font-medium text-charcoal-800 truncate">{player.name}</span>
+                {key === currentPlayerKey && (
+                  <span className="text-xs text-forest-600">(You)</span>
+                )}
+              </div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Correct</span>
+                  <span className="font-medium text-green-600">{stats.correct}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Incorrect</span>
+                  <span className="font-medium text-red-600">{stats.incorrect}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Accuracy</span>
+                  <span className="font-medium">{stats.accuracy}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Time</span>
+                  <span className="font-medium">{formatTime(stats.totalTime)}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Incorrect</span>
-              <span className="font-medium text-red-600">{player2Stats.incorrect}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Accuracy</span>
-              <span className="font-medium">{player2Stats.accuracy}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-charcoal-500">Time</span>
-              <span className="font-medium">{formatTime(player2Stats.totalTime)}</span>
-            </div>
-          </div>
-        </div>
+          );
+        })}
       </motion.div>
     </motion.div>
   );

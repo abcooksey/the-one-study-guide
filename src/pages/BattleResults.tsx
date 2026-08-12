@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBattleStore } from '../store/battleStore';
 import { BattleWinnerAnnouncement } from '../components/battle';
-import { BattleStats, BattleAttempt } from '../types/battle';
+import { BattleStats, BattleAttempt, PlayerKey } from '../types/battle';
 import { BattleResult } from '../types/battlePlayer';
 import { getOrCreatePlayer, updatePlayerStats } from '../lib/battlePlayerFirestore';
+import { getActivePlayers } from '../lib/battleFirestore';
 
 // Calculate correctness stats from attempts, excluding flagged/unanswered questions
 const calculateCorrectnessStats = (attempts: BattleAttempt[]) => {
@@ -24,8 +25,7 @@ export default function BattleResults() {
   const {
     battle,
     playerKey,
-    getPlayerStats,
-    getOpponentStats,
+    getStatsForPlayer,
     leaveBattle,
   } = useBattleStore();
 
@@ -36,48 +36,35 @@ export default function BattleResults() {
         return;
       }
 
-      if (!battle.player1 || !battle.player2 || !battle.winnerId) {
+      if (!battle.rankings || battle.rankings.length < 2) {
         return;
       }
 
       statsUpdatedRef.current = true;
 
-      // Ensure both players have profiles
-      await getOrCreatePlayer(battle.player1.name, battle.player1.emoji);
-      await getOrCreatePlayer(battle.player2.name, battle.player2.emoji);
+      // Get all active players
+      const activePlayers = getActivePlayers(battle);
 
-      // Calculate results for each player
-      const p1Stats = calculateCorrectnessStats(battle.player1.attempts);
-      const p2Stats = calculateCorrectnessStats(battle.player2.attempts);
-
-      // Determine results
-      let p1Result: BattleResult;
-      let p2Result: BattleResult;
-
-      if (battle.winnerId === 'player1') {
-        p1Result = 'win';
-        p2Result = 'loss';
-      } else if (battle.winnerId === 'player2') {
-        p1Result = 'loss';
-        p2Result = 'win';
-      } else {
-        p1Result = 'tie';
-        p2Result = 'tie';
+      // Ensure all players have profiles
+      for (const { player } of activePlayers) {
+        await getOrCreatePlayer(player.name, player.emoji);
       }
 
-      // Update stats for both players
-      await updatePlayerStats(
-        battle.player1.name,
-        p1Result,
-        p1Stats.correct,
-        p1Stats.answered
-      );
-      await updatePlayerStats(
-        battle.player2.name,
-        p2Result,
-        p2Stats.correct,
-        p2Stats.answered
-      );
+      // Update stats for each player based on their placement
+      for (const { key, player } of activePlayers) {
+        const rankIndex = battle.rankings.indexOf(key);
+        if (rankIndex === -1) continue;
+
+        const placement = (rankIndex + 1) as BattleResult; // 1, 2, 3, or 4
+        const stats = calculateCorrectnessStats(player.attempts);
+
+        await updatePlayerStats(
+          player.name,
+          placement,
+          stats.correct,
+          stats.answered
+        );
+      }
     };
 
     updateStats();
@@ -94,24 +81,13 @@ export default function BattleResults() {
     return null;
   }
 
-  const player1Stats = getPlayerStats();
-  const player2Stats = getOpponentStats();
-
-  // If stats are somehow missing, create defaults
-  const defaultStats: BattleStats = {
-    correct: 0,
-    incorrect: 0,
-    totalTime: 0,
-    accuracy: 0,
+  // Build stats map for all players
+  const playerStats: Record<PlayerKey, BattleStats | null> = {
+    player1: getStatsForPlayer('player1'),
+    player2: getStatsForPlayer('player2'),
+    player3: getStatsForPlayer('player3'),
+    player4: getStatsForPlayer('player4'),
   };
-
-  const finalPlayer1Stats = playerKey === 'player1'
-    ? (player1Stats || defaultStats)
-    : (player2Stats || defaultStats);
-
-  const finalPlayer2Stats = playerKey === 'player1'
-    ? (player2Stats || defaultStats)
-    : (player1Stats || defaultStats);
 
   const handlePlayAgain = () => {
     leaveBattle();
@@ -139,12 +115,15 @@ export default function BattleResults() {
       {/* Main content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
         <BattleWinnerAnnouncement
-          winnerId={battle.winnerId || 'tie'}
-          player1={battle.player1}
-          player2={battle.player2!}
+          rankings={battle.rankings || []}
+          players={{
+            player1: battle.player1,
+            player2: battle.player2,
+            player3: battle.player3,
+            player4: battle.player4,
+          }}
+          playerStats={playerStats}
           currentPlayerKey={playerKey}
-          player1Stats={finalPlayer1Stats}
-          player2Stats={finalPlayer2Stats}
         />
 
         {/* Action buttons */}

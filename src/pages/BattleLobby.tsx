@@ -10,9 +10,13 @@ import {
   BattleCountdown,
   BattleNameModal,
 } from '../components/battle';
-import { CreateBattlePlayerInput } from '../types/battle';
+import { CreateBattlePlayerInput, PlayerKey } from '../types/battle';
+import { getPlayerCount } from '../lib/battleFirestore';
 
 type LobbyMode = 'choose' | 'create' | 'join';
+
+// All possible player keys for iteration
+const ALL_PLAYER_KEYS: PlayerKey[] = ['player1', 'player2', 'player3', 'player4'];
 
 export default function BattleLobby() {
   const navigate = useNavigate();
@@ -43,6 +47,8 @@ export default function BattleLobby() {
     createBattle,
     joinBattle,
     setReady,
+    startGame,
+    canStartGame,
     leaveBattle,
   } = useBattleStore();
 
@@ -123,10 +129,11 @@ export default function BattleLobby() {
     navigate('/');
   };
 
-  // Determine current player and opponent
+  // Determine current player
   const currentPlayer = battle && playerKey ? battle[playerKey] : null;
-  const opponentKey = playerKey === 'player1' ? 'player2' : 'player1';
-  const opponent = battle ? battle[opponentKey] : null;
+
+  // Get player count
+  const playerCount = battle ? getPlayerCount(battle) : 0;
 
   // Show countdown overlay
   const showCountdown = battle?.status === 'countdown';
@@ -136,44 +143,61 @@ export default function BattleLobby() {
     // If we have a battle, show the waiting room
     if (battle) {
       return (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Battle code */}
           <div className="mb-8">
             <BattleCodeDisplay code={battle.id} />
           </div>
 
-          {/* Players */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            <BattleLobbyCard
-              player={battle.player1}
-              isCurrentPlayer={playerKey === 'player1'}
-              onToggleReady={playerKey === 'player1' ? handleToggleReady : undefined}
-            />
-            <BattleLobbyCard
-              player={battle.player2}
-              isCurrentPlayer={playerKey === 'player2'}
-              isWaiting={!battle.player2}
-              onToggleReady={playerKey === 'player2' ? handleToggleReady : undefined}
-            />
+          {/* Players grid - always show 4 slots */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {ALL_PLAYER_KEYS.map((key) => {
+              const player = battle[key];
+              return (
+                <BattleLobbyCard
+                  key={key}
+                  player={player}
+                  isCurrentPlayer={playerKey === key}
+                  isWaiting={!player}
+                  onToggleReady={playerKey === key ? handleToggleReady : undefined}
+                />
+              );
+            })}
           </div>
 
           {/* Status message */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             {battle.status === 'waiting' && (
               <p className="text-charcoal-600">
-                Waiting for opponent to join...
+                Waiting for players to join... ({playerCount} joined, need at least 2)
               </p>
             )}
             {battle.status === 'ready' && (
               <p className="text-charcoal-600">
-                {currentPlayer?.isReady
-                  ? opponent?.isReady
-                    ? 'Both players ready! Starting countdown...'
-                    : 'Waiting for opponent to ready up...'
-                  : 'Click "I\'m Ready!" when you\'re set to begin!'}
+                {!currentPlayer?.isReady
+                  ? 'Click "I\'m Ready!" when you\'re set to begin!'
+                  : canStartGame()
+                    ? 'All players ready! Anyone can start the game.'
+                    : `Waiting for players to ready up... (${playerCount} joined)`}
               </p>
             )}
           </div>
+
+          {/* Start Game button - visible when all players are ready */}
+          {canStartGame() && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center mb-6"
+            >
+              <button
+                onClick={startGame}
+                className="btn-brass btn-lg text-xl px-12 py-4"
+              >
+                Start Game!
+              </button>
+            </motion.div>
+          )}
 
           {/* Leave button */}
           <div className="text-center">
@@ -211,7 +235,7 @@ export default function BattleLobby() {
               <div className="text-2xl mb-2">Create Battle</div>
               <p className="text-sm opacity-80">
                 {hasEnoughCards
-                  ? 'Generate a code and invite a friend'
+                  ? 'Start a battle for 2-4 players'
                   : 'Need at least 20 unflagged flashcards'}
               </p>
             </button>
@@ -284,8 +308,8 @@ export default function BattleLobby() {
           </h1>
           <p className="text-charcoal-600">
             {battle
-              ? 'Waiting for the battle to begin...'
-              : 'Challenge a friend to test your LOTR knowledge!'}
+              ? `${playerCount} player${playerCount !== 1 ? 's' : ''} joined (2-4 players)`
+              : 'Challenge friends to test your LOTR knowledge!'}
           </p>
         </div>
 

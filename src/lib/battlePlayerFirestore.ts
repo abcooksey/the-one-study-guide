@@ -37,7 +37,10 @@ const createDefaultPlayer = (name: string, emoji: string): BattlePlayerProfile =
   totalBattles: 0,
   wins: 0,
   losses: 0,
-  ties: 0,
+  firstPlaces: 0,
+  secondPlaces: 0,
+  thirdPlaces: 0,
+  fourthPlaces: 0,
   totalCorrect: 0,
   totalAnswered: 0,
   winStreak: 0,
@@ -147,10 +150,14 @@ export async function getLeaderboard(maxPlayers: number = 5): Promise<Leaderboar
 
 /**
  * Update player stats after a battle
+ * @param playerName - The player's name
+ * @param placement - The player's placement (1, 2, 3, or 4)
+ * @param correct - Number of correct answers
+ * @param answered - Total questions answered
  */
 export async function updatePlayerStats(
   playerName: string,
-  result: BattleResult,
+  placement: BattleResult,
   correct: number,
   answered: number
 ): Promise<boolean> {
@@ -170,20 +177,32 @@ export async function updatePlayerStats(
       updatedAt: new Date().toISOString(),
     };
 
-    if (result === 'win') {
-      updates.wins = player.wins + 1;
-      updates.winStreak = player.winStreak + 1;
-      // Update longest streak if current exceeds it
-      if ((updates.winStreak || 0) > player.longestWinStreak) {
-        updates.longestWinStreak = updates.winStreak;
-      }
-    } else if (result === 'loss') {
-      updates.losses = player.losses + 1;
-      updates.winStreak = 0; // Reset on loss
-      // longestWinStreak stays unchanged
-    } else {
-      // Tie - no effect on streaks
-      updates.ties = player.ties + 1;
+    // Update placement-specific counters
+    switch (placement) {
+      case 1:
+        updates.firstPlaces = (player.firstPlaces || 0) + 1;
+        updates.wins = (player.wins || 0) + 1;  // 1st place = win
+        updates.winStreak = player.winStreak + 1;
+        // Update longest streak if current exceeds it
+        if ((updates.winStreak || 0) > player.longestWinStreak) {
+          updates.longestWinStreak = updates.winStreak;
+        }
+        break;
+      case 2:
+        updates.secondPlaces = (player.secondPlaces || 0) + 1;
+        updates.losses = (player.losses || 0) + 1;
+        updates.winStreak = 0;  // Reset streak on non-win
+        break;
+      case 3:
+        updates.thirdPlaces = (player.thirdPlaces || 0) + 1;
+        updates.losses = (player.losses || 0) + 1;
+        updates.winStreak = 0;
+        break;
+      case 4:
+        updates.fourthPlaces = (player.fourthPlaces || 0) + 1;
+        updates.losses = (player.losses || 0) + 1;
+        updates.winStreak = 0;
+        break;
     }
 
     const docRef = getPlayerDocRef(playerName);

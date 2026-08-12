@@ -4,9 +4,10 @@ import {
   Battle,
   BattlePlayer,
   BattleAttempt,
-  WinnerResult,
+  PlayerKey,
   CreateBattlePlayerInput,
   BattleStats,
+  PlacementResult,
 } from '../types/battle';
 import { Flashcard } from '../types';
 import {
@@ -21,17 +22,26 @@ import {
   updatePlayerHeartbeat,
   subscribeToBattle,
   battleExists,
+  getActivePlayers,
+  isBattleFull,
+  removePlayerFromBattle,
+  markPlayerDisconnected,
+  isHeartbeatStale,
 } from '../lib/battleFirestore';
 import { generateBattleCode } from '../utils/battleCode';
 
 const QUESTIONS_PER_BATTLE = 20;
 const HEARTBEAT_INTERVAL = 5000; // 5 seconds
 const COUNTDOWN_SECONDS = 10;
+const STALE_HEARTBEAT_THRESHOLD = 15000; // 15 seconds
+
+// All player keys for iteration
+const ALL_PLAYER_KEYS: PlayerKey[] = ['player1', 'player2', 'player3', 'player4'];
 
 interface BattleState {
   // Current battle state (synced from Firestore)
   battle: Battle | null;
-  playerKey: 'player1' | 'player2' | null;
+  playerKey: PlayerKey | null;
 
   // UI state
   isLoading: boolean;
@@ -44,9 +54,10 @@ interface BattleState {
   countdownInterval: NodeJS.Timeout | null;
 
   // Actions
-  createBattle: (player: CreateBattlePlayerInput, flashcards: Flashcard[]) => Promise<string | null>;
+  createBattle: (player: CreateBattlePlayerInput, flashcards: Flashcard[], maxPlayers?: 2 | 3 | 4) => Promise<string | null>;
   joinBattle: (code: string, player: CreateBattlePlayerInput) => Promise<boolean>;
   setReady: (isReady: boolean) => Promise<void>;
+  startGame: () => Promise<void>;  // Any player can start when 2+ ready
   markAnswer: (flashcardId: string, status: 'correct' | 'incorrect') => Promise<void>;
   goToQuestion: (index: number) => Promise<void>;
   finishBattle: () => Promise<void>;
@@ -56,18 +67,26 @@ interface BattleState {
   subscribeToBattleUpdates: (code: string) => void;
   startHeartbeat: () => void;
   stopHeartbeat: () => void;
+  setupBeforeUnload: () => void;
+  cleanupBeforeUnload: () => void;
+  cleanupStalePlayers: (battle: Battle) => void;
   handleBattleUpdate: (battle: Battle | null) => void;
   checkAndStartCountdown: () => void;
   startCountdownTimer: () => void;
-  determineWinner: () => WinnerResult;
+  determineRankings: () => PlayerKey[];
 
   // Computed
   getCurrentQuestionIndex: () => number;
   getAttempts: () => BattleAttempt[];
-  getOpponent: () => BattlePlayer | null;
+  getOpponents: () => BattlePlayer[];
+  getPlayer: (key: PlayerKey) => BattlePlayer | null;
+  getActivePlayerKeys: () => PlayerKey[];
   getPlayerStats: () => BattleStats | null;
-  getOpponentStats: () => BattleStats | null;
+  getStatsForPlayer: (key: PlayerKey) => BattleStats | null;
+  getPlacement: (key: PlayerKey) => PlacementResult | null;
+  allPlayersFinished: () => boolean;
   canFinish: () => boolean;
+  canStartGame: () => boolean;  // True when 2+ players joined and all ready
   isHost: () => boolean;
 }
 
@@ -81,7 +100,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
   heartbeatInterval: null,
   countdownInterval: null,
 
-  createBattle: async (player, flashcards) => {
+  createBattle: async (player, flashcards, maxPlayers = 4) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -124,15 +143,20 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
         })),
       };
 
-      // Create battle
+      // Create battle with expanded player slots
       const battle: Battle = {
         id: code,
         status: 'waiting',
         questionIds: selectedIds,
         player1,
         player2: null,
+        player3: null,
+        player4: null,
+        maxPlayers,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
       };
+
+      console.log('Creating battle with maxPlayers:', maxPlayers, battle);
 
       const success = await createBattleFirestore(battle);
       if (!success) {
@@ -143,6 +167,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       set({ playerKey: 'player1', isLoading: false });
       get().subscribeToBattleUpdates(code);
       get().startHeartbeat();
+      get().setupBeforeUnload();
 
       return code;
     } catch (error) {
@@ -163,18 +188,29 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
         return false;
       }
 
-      if (existingBattle.status !== 'waiting') {
+      if (existingBattle.status !== 'waiting' && existingBattle.status !== 'ready') {
         set({ error: 'Battle has already started', isLoading: false });
         return false;
       }
 
-      if (existingBattle.player2) {
+      // Debug logging
+      console.log('Battle data:', {
+        id: existingBattle.id,
+        maxPlayers: existingBattle.maxPlayers,
+        player1: !!existingBattle.player1,
+        player2: !!existingBattle.player2,
+        player3: !!existingBattle.player3,
+        player4: !!existingBattle.player4,
+        isFull: isBattleFull(existingBattle),
+      });
+
+      if (isBattleFull(existingBattle)) {
         set({ error: 'Battle is full', isLoading: false });
         return false;
       }
 
-      // Create player 2 with same question structure
-      const player2: BattlePlayer = {
+      // Create new player with same question structure
+      const newPlayer: BattlePlayer = {
         name: player.name,
         emoji: player.emoji,
         isReady: false,
@@ -187,15 +223,16 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
         })),
       };
 
-      const success = await joinBattleFirestore(code, player2);
-      if (!success) {
+      const result = await joinBattleFirestore(code, newPlayer);
+      if (!result.success || !result.playerKey) {
         set({ error: 'Failed to join battle', isLoading: false });
         return false;
       }
 
-      set({ playerKey: 'player2', isLoading: false });
+      set({ playerKey: result.playerKey, isLoading: false });
       get().subscribeToBattleUpdates(code);
       get().startHeartbeat();
+      get().setupBeforeUnload();
 
       return true;
     } catch (error) {
@@ -211,6 +248,17 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
 
     await setPlayerReady(battle.id, playerKey, isReady);
     // The update will come through the subscription
+  },
+
+  startGame: async () => {
+    const { battle } = get();
+    if (!battle) return;
+
+    // Verify we can start (2+ players, all ready)
+    if (!get().canStartGame()) return;
+
+    // Trigger countdown - any player can do this
+    await startCountdown(battle.id);
   },
 
   markAnswer: async (flashcardId, status) => {
@@ -256,7 +304,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       finishedAt: new Date().toISOString(),
     });
 
-    // The opponent finishing or both finishing will trigger winner determination
+    // The opponent(s) finishing or all finishing will trigger rankings determination
     // through the subscription handler
   },
 
@@ -268,6 +316,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       state.unsubscribe();
     }
     get().stopHeartbeat();
+    get().cleanupBeforeUnload();
 
     // Clear countdown if running
     if (state.countdownInterval) {
@@ -316,6 +365,47 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     }
   },
 
+  setupBeforeUnload: () => {
+    const handleBeforeUnload = () => {
+      const { battle, playerKey } = get();
+      if (battle && playerKey) {
+        // Mark player as disconnected when they close the browser
+        // Using sendBeacon for reliability during page unload
+        markPlayerDisconnected(battle.id, playerKey);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Store the handler reference for cleanup
+    (window as Window & { __battleBeforeUnload?: () => void }).__battleBeforeUnload = handleBeforeUnload;
+  },
+
+  cleanupBeforeUnload: () => {
+    const handler = (window as Window & { __battleBeforeUnload?: () => void }).__battleBeforeUnload;
+    if (handler) {
+      window.removeEventListener('beforeunload', handler);
+      delete (window as Window & { __battleBeforeUnload?: () => void }).__battleBeforeUnload;
+    }
+  },
+
+  cleanupStalePlayers: async (battle: Battle) => {
+    // Only the host cleans up stale players to avoid race conditions
+    if (!get().isHost()) return;
+
+    // Don't cleanup during active battles or completed battles
+    if (battle.status === 'active' || battle.status === 'completed') return;
+
+    const allKeys: PlayerKey[] = ['player2', 'player3', 'player4'];
+
+    for (const key of allKeys) {
+      const player = battle[key];
+      if (player && isHeartbeatStale(player, STALE_HEARTBEAT_THRESHOLD)) {
+        console.log(`Removing stale player: ${player.name} (${key})`);
+        await removePlayerFromBattle(battle.id, key);
+      }
+    }
+  },
+
   handleBattleUpdate: (battle) => {
     if (!battle) {
       // Battle was deleted or doesn't exist
@@ -326,30 +416,20 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     const previousBattle = get().battle;
     set({ battle });
 
-    // Check if both players are ready and we need to start countdown
-    if (battle.status === 'ready' && battle.player1?.isReady && battle.player2?.isReady) {
-      // Only host triggers countdown
-      if (get().isHost()) {
-        get().checkAndStartCountdown();
-      }
-    }
+    // Clean up stale players (only host does this during lobby phase)
+    get().cleanupStalePlayers(battle);
 
     // Handle countdown to active transition
     if (battle.status === 'countdown' && previousBattle?.status !== 'countdown') {
       get().startCountdownTimer();
     }
 
-    // Check if battle should complete (both players finished)
-    if (battle.status === 'active') {
-      const p1Finished = battle.player1?.finishedAt;
-      const p2Finished = battle.player2?.finishedAt;
-
-      if (p1Finished && p2Finished) {
-        // Both finished - determine winner (only host does this)
-        if (get().isHost()) {
-          const winner = get().determineWinner();
-          completeBattle(battle.id, winner);
-        }
+    // Check if battle should complete (all players finished)
+    if (battle.status === 'active' && get().allPlayersFinished()) {
+      // All finished - determine rankings (only host does this)
+      if (get().isHost()) {
+        const rankings = get().determineRankings();
+        completeBattle(battle.id, rankings);
       }
     }
   },
@@ -404,26 +484,33 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     set({ countdownInterval: interval });
   },
 
-  determineWinner: () => {
+  determineRankings: (): PlayerKey[] => {
     const { battle } = get();
-    if (!battle || !battle.player1 || !battle.player2) return 'tie';
+    if (!battle) return [];
 
-    const p1Correct = battle.player1.attempts.filter((a) => a.status === 'correct').length;
-    const p2Correct = battle.player2.attempts.filter((a) => a.status === 'correct').length;
+    // Get all active players with their keys
+    const activePlayers = getActivePlayers(battle);
 
-    // Primary: Most correct answers
-    if (p1Correct > p2Correct) return 'player1';
-    if (p2Correct > p1Correct) return 'player2';
+    // Calculate scores for each player
+    const scores = activePlayers.map(({ key, player }) => {
+      const correct = player.attempts.filter((a) => a.status === 'correct').length;
+      const finishTime = player.finishedAt
+        ? new Date(player.finishedAt).getTime()
+        : Infinity; // Unfinished = last place
 
-    // Tie-breaker: Who finished first
-    const p1Time = battle.player1.finishedAt ? new Date(battle.player1.finishedAt).getTime() : Infinity;
-    const p2Time = battle.player2.finishedAt ? new Date(battle.player2.finishedAt).getTime() : Infinity;
+      return { key, correct, finishTime };
+    });
 
-    if (p1Time < p2Time) return 'player1';
-    if (p2Time < p1Time) return 'player2';
+    // Sort: most correct first, then fastest time
+    scores.sort((a, b) => {
+      if (b.correct !== a.correct) {
+        return b.correct - a.correct; // Higher correct = better
+      }
+      return a.finishTime - b.finishTime; // Lower time = better
+    });
 
-    // True tie
-    return 'tie';
+    // Return ordered player keys
+    return scores.map((s) => s.key);
   },
 
   getCurrentQuestionIndex: () => {
@@ -442,12 +529,36 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     return player?.attempts ?? [];
   },
 
-  getOpponent: () => {
+  getOpponents: (): BattlePlayer[] => {
     const { battle, playerKey } = get();
-    if (!battle || !playerKey) return null;
+    if (!battle || !playerKey) return [];
 
-    const opponentKey = playerKey === 'player1' ? 'player2' : 'player1';
-    return battle[opponentKey] ?? null;
+    const opponents: BattlePlayer[] = [];
+    for (const key of ALL_PLAYER_KEYS) {
+      if (key !== playerKey && battle[key]) {
+        opponents.push(battle[key]!);
+      }
+    }
+    return opponents;
+  },
+
+  getPlayer: (key: PlayerKey): BattlePlayer | null => {
+    const { battle } = get();
+    if (!battle) return null;
+    return battle[key] ?? null;
+  },
+
+  getActivePlayerKeys: (): PlayerKey[] => {
+    const { battle } = get();
+    if (!battle) return [];
+
+    const keys: PlayerKey[] = [];
+    for (const key of ALL_PLAYER_KEYS) {
+      if (battle[key]) {
+        keys.push(key);
+      }
+    }
+    return keys;
   },
 
   getPlayerStats: () => {
@@ -472,20 +583,19 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     };
   },
 
-  getOpponentStats: () => {
-    const { battle, playerKey } = get();
-    if (!battle || !playerKey) return null;
+  getStatsForPlayer: (key: PlayerKey): BattleStats | null => {
+    const { battle } = get();
+    if (!battle) return null;
 
-    const opponentKey = playerKey === 'player1' ? 'player2' : 'player1';
-    const opponent = battle[opponentKey];
-    if (!opponent) return null;
+    const player = battle[key];
+    if (!player) return null;
 
-    const correct = opponent.attempts.filter((a) => a.status === 'correct').length;
-    const incorrect = opponent.attempts.filter((a) => a.status === 'incorrect').length;
+    const correct = player.attempts.filter((a) => a.status === 'correct').length;
+    const incorrect = player.attempts.filter((a) => a.status === 'incorrect').length;
     const total = correct + incorrect;
 
     const startTime = battle.battleStartedAt ? new Date(battle.battleStartedAt).getTime() : 0;
-    const endTime = opponent.finishedAt ? new Date(opponent.finishedAt).getTime() : Date.now();
+    const endTime = player.finishedAt ? new Date(player.finishedAt).getTime() : Date.now();
 
     return {
       correct,
@@ -493,6 +603,24 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       totalTime: endTime - startTime,
       accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
+  },
+
+  getPlacement: (key: PlayerKey): PlacementResult | null => {
+    const { battle } = get();
+    if (!battle || !battle.rankings) return null;
+
+    const index = battle.rankings.indexOf(key);
+    if (index === -1) return null;
+
+    return (index + 1) as PlacementResult;
+  },
+
+  allPlayersFinished: (): boolean => {
+    const { battle } = get();
+    if (!battle) return false;
+
+    const activePlayers = getActivePlayers(battle);
+    return activePlayers.length >= 2 && activePlayers.every(({ player }) => player.finishedAt);
   },
 
   canFinish: () => {
@@ -504,6 +632,21 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
 
     // Can finish when all questions are answered
     return !player.attempts.some((a) => a.status === 'unanswered');
+  },
+
+  canStartGame: () => {
+    const { battle } = get();
+    if (!battle) return false;
+
+    // Can only start from 'ready' status (not already counting down or active)
+    if (battle.status !== 'ready') return false;
+
+    // Need at least 2 players
+    const activePlayers = getActivePlayers(battle);
+    if (activePlayers.length < 2) return false;
+
+    // All joined players must be ready
+    return activePlayers.every(({ player }) => player.isReady);
   },
 
   isHost: () => {

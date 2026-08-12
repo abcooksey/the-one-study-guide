@@ -21,7 +21,7 @@ export default function BattleSession() {
     battle,
     playerKey,
     getAttempts,
-    getOpponent,
+    getOpponents,
     canFinish,
     markAnswer,
     goToQuestion,
@@ -33,7 +33,7 @@ export default function BattleSession() {
   const flagFlashcard = useAppStore((state) => state.flagFlashcard);
 
   const attempts = getAttempts();
-  const opponent = getOpponent();
+  const opponents = getOpponents();
   const canComplete = canFinish();
   const currentPlayer = battle && playerKey ? battle[playerKey] : null;
 
@@ -214,13 +214,20 @@ export default function BattleSession() {
         </div>
       </div>
 
-      {/* Opponent Progress */}
+      {/* Opponents Progress - supports multiple opponents */}
       <div className="px-4 pt-4">
         <div className="max-w-4xl mx-auto">
-          <OpponentProgress
-            opponent={opponent}
-            totalQuestions={attempts.length}
-          />
+          <div className={`flex gap-2 ${opponents.length > 1 ? 'flex-wrap' : ''}`}>
+            {opponents.map((opponent) => (
+              <div key={opponent.name} className={opponents.length === 1 ? 'w-full' : 'flex-1 min-w-[200px]'}>
+                <OpponentProgress
+                  opponent={opponent}
+                  totalQuestions={attempts.length}
+                  compact={opponents.length > 1}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -297,7 +304,7 @@ export default function BattleSession() {
       <ConfirmDialog
         isOpen={showAbandonDialog}
         title="Leave Battle?"
-        message="If you leave, you'll forfeit this battle. Your opponent will win by default."
+        message="If you leave, you'll forfeit this battle. Your opponents will continue without you."
         confirmLabel="Leave Battle"
         cancelLabel="Continue"
         confirmVariant="danger"

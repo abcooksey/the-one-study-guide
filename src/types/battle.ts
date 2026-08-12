@@ -1,15 +1,19 @@
 // Battle Mode Types
-// Real-time multiplayer mode where two players compete head-to-head
+// Real-time multiplayer mode where 2-4 players compete head-to-head
 
 export type BattleStatus =
-  | 'waiting'    // Player 1 created, waiting for player 2
-  | 'ready'      // Both players joined, waiting for ready confirmation
-  | 'countdown'  // Both ready, countdown in progress
+  | 'waiting'    // 1 player, waiting for 2-4 total
+  | 'ready'      // 2+ players joined, waiting for all to ready up
+  | 'countdown'  // All ready, countdown in progress
   | 'active'     // Battle in progress
   | 'completed'  // Battle finished
-  | 'abandoned'; // One or both players left
+  | 'abandoned'; // Player(s) disconnected
 
-export type WinnerResult = 'player1' | 'player2' | 'tie';
+// Expanded PlayerKey type for 2-4 players
+export type PlayerKey = 'player1' | 'player2' | 'player3' | 'player4';
+
+// Placement result for stats tracking (1st, 2nd, 3rd, 4th)
+export type PlacementResult = 1 | 2 | 3 | 4;
 
 export interface BattleAttempt {
   flashcardId: string;
@@ -32,11 +36,23 @@ export interface Battle {
   id: string;                    // 4-digit code (e.g., "7A3K")
   status: BattleStatus;
   questionIds: string[];         // 20 flashcard IDs in order
+
+  // Player slots - keep named fields for Firestore compatibility
   player1: BattlePlayer;
   player2: BattlePlayer | null;
+  player3: BattlePlayer | null;
+  player4: BattlePlayer | null;
+
+  // Battle configuration
+  maxPlayers: 2 | 3 | 4;         // Set by host when creating
+
   countdownStartedAt?: string;
   battleStartedAt?: string;
-  winnerId?: WinnerResult;
+
+  // Results - ordered array of player keys by rank (1st to last)
+  // e.g., ['player3', 'player1', 'player4', 'player2']
+  rankings?: PlayerKey[];
+
   expiresAt: string;             // TTL for cleanup (1 hour)
 }
 
