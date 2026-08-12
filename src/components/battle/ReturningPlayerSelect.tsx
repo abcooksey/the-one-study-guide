@@ -62,7 +62,7 @@ export default function ReturningPlayerSelect({
           <option value="">Select a player...</option>
           {players.map((player) => (
             <option key={player.name} value={player.name}>
-              {player.displayName} ({player.wins} wins)
+              {player.displayName}
             </option>
           ))}
         </select>
