@@ -157,3 +157,6 @@ export const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard'];
 
 // Battle types
 export * from './battle';
+
+// Battle player types
+export * from './battlePlayer';

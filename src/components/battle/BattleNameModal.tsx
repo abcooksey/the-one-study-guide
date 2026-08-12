@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CreateBattlePlayerInput } from '../../types/battle';
+import { BattlePlayerProfile } from '../../types/battlePlayer';
+import ReturningPlayerSelect from './ReturningPlayerSelect';
 
 interface BattleNameModalProps {
   isOpen: boolean;
@@ -36,15 +38,30 @@ export default function BattleNameModal({
 }: BattleNameModalProps) {
   const [name, setName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(BATTLE_ICONS[0]);
+  const [returningPlayer, setReturningPlayer] = useState<BattlePlayerProfile | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
+    if (returningPlayer) {
+      onSubmit({
+        name: returningPlayer.displayName,
+        emoji: returningPlayer.emoji,
+        isReturningPlayer: true,
+      });
+    } else if (name.trim()) {
       onSubmit({ name: name.trim(), emoji: selectedIcon.path });
     }
   };
 
-  const isValid = name.trim().length > 0;
+  const handleReturningPlayerSelect = (player: BattlePlayerProfile | null) => {
+    setReturningPlayer(player);
+    if (player) {
+      // Clear new player fields when selecting returning player
+      setName('');
+    }
+  };
+
+  const isValid = returningPlayer !== null || name.trim().length > 0;
 
   return (
     <AnimatePresence>
@@ -72,64 +89,84 @@ export default function BattleNameModal({
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Name input */}
-              <div>
-                <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  maxLength={20}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-parchment-300 focus:border-forest-400 focus:outline-none focus:ring-2 focus:ring-forest-400/20 bg-white"
-                  autoFocus
-                />
-              </div>
+              {/* Returning Player Select */}
+              <ReturningPlayerSelect
+                onSelect={handleReturningPlayerSelect}
+                selectedPlayer={returningPlayer}
+              />
 
-              {/* Icon selector */}
-              <div>
-                <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                  Choose Your Character
-                </label>
-                <div className="grid grid-cols-4 gap-3">
-                  {BATTLE_ICONS.map((icon) => (
-                    <button
-                      key={icon.name}
-                      type="button"
-                      onClick={() => setSelectedIcon(icon)}
-                      className={`
-                        p-2 rounded-xl transition-all flex flex-col items-center
-                        ${selectedIcon.name === icon.name
-                          ? 'bg-forest-100 border-2 border-forest-400 scale-105'
-                          : 'bg-parchment-100 border-2 border-transparent hover:bg-parchment-200'
-                        }
-                      `}
-                      title={icon.name}
-                    >
-                      <img
-                        src={icon.path}
-                        alt={icon.name}
-                        className="w-12 h-12 object-contain"
-                      />
-                    </button>
-                  ))}
+              {/* Divider - only show if returning player dropdown is visible */}
+              {!returningPlayer && (
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 border-t border-parchment-300" />
+                  <span className="text-sm text-charcoal-400">OR</span>
+                  <div className="flex-1 border-t border-parchment-300" />
                 </div>
-              </div>
+              )}
 
-              {/* Preview */}
-              <div className="bg-white rounded-xl p-4 border border-parchment-200 text-center">
-                <img
-                  src={selectedIcon.path}
-                  alt={selectedIcon.name}
-                  className="w-16 h-16 object-contain mx-auto"
-                />
-                <p className="font-medium text-charcoal-900 mt-2">
-                  {name.trim() || 'Your Name'}
-                </p>
-                <p className="text-sm text-charcoal-500">{selectedIcon.name}</p>
-              </div>
+              {/* New Player section - hide when returning player is selected */}
+              {!returningPlayer && (
+                <>
+                  {/* Name input */}
+                  <div>
+                    <label className="block text-sm font-medium text-charcoal-700 mb-2">
+                      Your Name (max 5 characters)
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
+                      maxLength={5}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-parchment-300 focus:border-forest-400 focus:outline-none focus:ring-2 focus:ring-forest-400/20 bg-white"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Icon selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-charcoal-700 mb-2">
+                      Choose Your Character
+                    </label>
+                    <div className="grid grid-cols-4 gap-3">
+                      {BATTLE_ICONS.map((icon) => (
+                        <button
+                          key={icon.name}
+                          type="button"
+                          onClick={() => setSelectedIcon(icon)}
+                          className={`
+                            p-2 rounded-xl transition-all flex flex-col items-center
+                            ${selectedIcon.name === icon.name
+                              ? 'bg-forest-100 border-2 border-forest-400 scale-105'
+                              : 'bg-parchment-100 border-2 border-transparent hover:bg-parchment-200'
+                            }
+                          `}
+                          title={icon.name}
+                        >
+                          <img
+                            src={icon.path}
+                            alt={icon.name}
+                            className="w-12 h-12 object-contain"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Preview for new player */}
+                  <div className="bg-white rounded-xl p-4 border border-parchment-200 text-center">
+                    <img
+                      src={selectedIcon.path}
+                      alt={selectedIcon.name}
+                      className="w-16 h-16 object-contain mx-auto"
+                    />
+                    <p className="font-medium text-charcoal-900 mt-2">
+                      {name.trim() || 'Your Name'}
+                    </p>
+                    <p className="text-sm text-charcoal-500">{selectedIcon.name}</p>
+                  </div>
+                </>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3">

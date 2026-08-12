@@ -44,6 +44,7 @@ export interface Battle {
 export interface CreateBattlePlayerInput {
   name: string;
   emoji: string;
+  isReturningPlayer?: boolean;  // Flag for stats tracking
 }
 
 // Battle statistics for results page

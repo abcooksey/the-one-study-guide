@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import ProfileSelector from '../components/ProfileSelector';
 import DifficultyModeSelector from '../components/DifficultyModeSelector';
+import { BattleLeaderboard } from '../components/battle';
 import { getOverallTrend } from '../utils/stats';
 import { Profile, PerformanceStats, DifficultyMode, DetailedStats, StatBreakdown } from '../types';
 
@@ -413,6 +414,9 @@ export default function Dashboard() {
         <p className="text-center text-charcoal-500 text-sm mt-4">
           Challenge a friend to a real-time trivia battle!
         </p>
+
+        {/* Leaderboard */}
+        <BattleLeaderboard />
       </div>
 
       {/* Quick Actions */}

@@ -5,3 +5,5 @@ export { default as BattleCountdown } from './BattleCountdown';
 export { default as BattleNameModal } from './BattleNameModal';
 export { default as OpponentProgress } from './OpponentProgress';
 export { default as BattleWinnerAnnouncement } from './BattleWinnerAnnouncement';
+export { default as ReturningPlayerSelect } from './ReturningPlayerSelect';
+export { default as BattleLeaderboard } from './BattleLeaderboard';
