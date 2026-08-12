@@ -58,6 +58,9 @@ interface AppState {
   // Session History
   sessions: Session[];
 
+  // Question recency tracking (last 5 sessions worth of question IDs)
+  recentlyUsedQuestions: string[][];
+
   // Cloud Sync
   cloudSyncEnabled: boolean;
   cloudSyncLoading: boolean;
@@ -108,6 +111,7 @@ export const useAppStore = create<AppState>()(
       currentCardIndex: 0,
       isCardFlipped: false,
       sessions: [],
+      recentlyUsedQuestions: [],
       cloudSyncEnabled: false,
       cloudSyncLoading: false,
       lastSyncedAt: null,
@@ -365,16 +369,49 @@ export const useAppStore = create<AppState>()(
           return false;
         }
 
+        // Fisher-Yates shuffle - proper unbiased shuffling
+        const fisherYatesShuffle = <T>(arr: T[]): T[] => {
+          const result = [...arr];
+          for (let i = result.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [result[i], result[j]] = [result[j], result[i]];
+          }
+          return result;
+        };
+
+        // Build recency penalty map: more recent = higher penalty
+        // recentlyUsedQuestions[0] = most recent session, [4] = oldest
+        const recencyPenalty = new Map<string, number>();
+        state.recentlyUsedQuestions.forEach((sessionQuestionIds, sessionIndex) => {
+          // Penalty decreases with age: session 0 = 50 penalty, session 4 = 10 penalty
+          const penalty = 50 - sessionIndex * 10;
+          sessionQuestionIds.forEach((id) => {
+            // Take max penalty if question appears in multiple recent sessions
+            const existing = recencyPenalty.get(id) || 0;
+            recencyPenalty.set(id, Math.max(existing, penalty));
+          });
+        });
+
+        // Weighted shuffle: assigns each card a random score minus recency penalty
+        const weightedShuffle = (cards: Flashcard[]): Flashcard[] => {
+          const scored = cards.map((card) => ({
+            card,
+            // Base random score 0-100, minus recency penalty (0-50)
+            score: Math.random() * 100 - (recencyPenalty.get(card.id) || 0),
+          }));
+          scored.sort((a, b) => b.score - a.score);
+          return scored.map((s) => s.card);
+        };
+
         // Group flashcards by difficulty
         const easyCards = availableFlashcards.filter((f) => f.difficulty === 'Easy');
         const mediumCards = availableFlashcards.filter((f) => f.difficulty === 'Medium');
         const hardCards = availableFlashcards.filter((f) => f.difficulty === 'Hard');
 
-        // Shuffle each difficulty pool
-        const shuffleArray = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
-        const shuffledEasy = shuffleArray(easyCards);
-        const shuffledMedium = shuffleArray(mediumCards);
-        const shuffledHard = shuffleArray(hardCards);
+        // Apply weighted shuffle to each difficulty pool
+        const shuffledEasy = weightedShuffle(easyCards);
+        const shuffledMedium = weightedShuffle(mediumCards);
+        const shuffledHard = weightedShuffle(hardCards);
 
         let selectedCards: Flashcard[] = [];
 
@@ -387,7 +424,7 @@ export const useAppStore = create<AppState>()(
 
           // If we don't have enough of each difficulty, fill with random from others
           if (selectedCards.length < QUESTIONS_PER_ROUND) {
-            const allShuffled = shuffleArray(availableFlashcards);
+            const allShuffled = weightedShuffle(availableFlashcards);
             const selectedIds = new Set(selectedCards.map((c) => c.id));
             for (const card of allShuffled) {
               if (!selectedIds.has(card.id)) {
@@ -402,7 +439,7 @@ export const useAppStore = create<AppState>()(
           const usedIds = new Set(easyWarmup.map((c) => c.id));
 
           // Get remaining cards (excluding the 5 easy warmup cards)
-          const remaining = shuffleArray(
+          const remaining = weightedShuffle(
             availableFlashcards.filter((f) => !usedIds.has(f.id))
           ).slice(0, 15);
 
@@ -410,7 +447,7 @@ export const useAppStore = create<AppState>()(
 
           // If we don't have enough easy cards, just use random
           if (selectedCards.length < QUESTIONS_PER_ROUND) {
-            const allShuffled = shuffleArray(availableFlashcards);
+            const allShuffled = weightedShuffle(availableFlashcards);
             const selectedIds = new Set(selectedCards.map((c) => c.id));
             for (const card of allShuffled) {
               if (!selectedIds.has(card.id)) {
@@ -435,6 +472,7 @@ export const useAppStore = create<AppState>()(
             .map((s) => s.name);
 
           // Score each flashcard based on weakness (lower accuracy = higher priority)
+          // Also factor in recency penalty
           const scoredCards = availableFlashcards.map((card) => {
             let score = 0;
 
@@ -450,8 +488,11 @@ export const useAppStore = create<AppState>()(
               score += (weakCategories.length - catIndex) * 10;
             }
 
-            // Add small random factor to mix things up
-            score += Math.random() * 5;
+            // Add random factor
+            score += Math.random() * 10;
+
+            // Subtract recency penalty to deprioritize recently seen questions
+            score -= (recencyPenalty.get(card.id) || 0) * 0.5;
 
             return { card, score };
           });
@@ -463,10 +504,10 @@ export const useAppStore = create<AppState>()(
           selectedCards = scoredCards.slice(0, QUESTIONS_PER_ROUND).map((sc) => sc.card);
 
           // Shuffle the selected cards so weak areas are mixed throughout
-          selectedCards = shuffleArray(selectedCards);
+          selectedCards = fisherYatesShuffle(selectedCards);
         } else {
-          // Random mode: completely random selection
-          const shuffled = shuffleArray(availableFlashcards);
+          // Random mode: weighted random selection favoring less recently used
+          const shuffled = weightedShuffle(availableFlashcards);
           selectedCards = shuffled.slice(0, QUESTIONS_PER_ROUND);
         }
 
@@ -593,11 +634,19 @@ export const useAppStore = create<AppState>()(
         // Only persist sessions for Alex and Angus, not Guest
         const shouldPersist = completedSession.profile !== 'Guest';
 
+        // Track recently used questions (keep last 5 sessions)
+        const sessionQuestionIds = completedSession.attempts.map((a) => a.flashcardId);
+        const updatedRecentlyUsed = [
+          sessionQuestionIds,
+          ...state.recentlyUsedQuestions,
+        ].slice(0, 5); // Keep only last 5 sessions
+
         set({
           sessions: shouldPersist
             ? [...state.sessions, completedSession]
             : state.sessions,
           currentSession: completedSession,
+          recentlyUsedQuestions: updatedRecentlyUsed,
         });
 
         // Sync to cloud
@@ -781,6 +830,7 @@ export const useAppStore = create<AppState>()(
         initialized: state.initialized,
         deletedSeedIds: state.deletedSeedIds,
         sessions: state.sessions,
+        recentlyUsedQuestions: state.recentlyUsedQuestions,
       }),
     }
   )
