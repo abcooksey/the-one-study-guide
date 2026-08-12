@@ -8,6 +8,7 @@ import SessionResults from './pages/SessionResults';
 import FlashcardLibrary from './pages/FlashcardLibrary';
 import AddFlashcard from './pages/AddFlashcard';
 import EditFlashcard from './pages/EditFlashcard';
+import ReviewQuestions from './pages/ReviewQuestions';
 import BattleLobby from './pages/BattleLobby';
 import BattleSession from './pages/BattleSession';
 import BattleWaiting from './pages/BattleWaiting';
@@ -36,6 +37,7 @@ function App() {
         <Route path="/library" element={<FlashcardLibrary />} />
         <Route path="/add" element={<AddFlashcard />} />
         <Route path="/edit/:id" element={<EditFlashcard />} />
+        <Route path="/review" element={<ReviewQuestions />} />
         <Route path="/battle" element={<BattleLobby />} />
         <Route path="/battle/:code" element={<BattleLobby />} />
         <Route path="/battle/:code/play" element={<BattleSession />} />

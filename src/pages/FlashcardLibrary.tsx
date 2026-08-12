@@ -120,6 +120,9 @@ export default function FlashcardLibrary() {
               🚩 {flaggedCount} Flagged
             </button>
           )}
+          <Link to="/review" className="btn-secondary">
+            Review Queue
+          </Link>
           <Link to="/add" className="btn-primary">
             + Add Flashcard
           </Link>

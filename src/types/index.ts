@@ -160,3 +160,6 @@ export * from './battle';
 
 // Battle player types
 export * from './battlePlayer';
+
+// Pending question types
+export * from './pendingQuestion';
