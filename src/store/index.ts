@@ -460,16 +460,29 @@ export const useAppStore = create<AppState>()(
           // Weakness mode: prioritize questions from weak categories and films
           const detailedStats = get().getDetailedStats(profile);
 
-          // Get weak areas (accuracy below 70%, sorted by accuracy ascending)
-          const weakFilms = detailedStats.byFilm
+          // First check for truly weak areas (accuracy below 70%)
+          let weakFilms = detailedStats.byFilm
             .filter((s) => s.accuracy < 70)
             .sort((a, b) => a.accuracy - b.accuracy)
             .map((s) => s.name);
 
-          const weakCategories = detailedStats.byCategory
+          let weakCategories = detailedStats.byCategory
             .filter((s) => s.accuracy < 70)
             .sort((a, b) => a.accuracy - b.accuracy)
             .map((s) => s.name);
+
+          // If no weak areas below 70%, use 90% threshold for improvement areas
+          if (weakFilms.length === 0 && weakCategories.length === 0) {
+            weakFilms = detailedStats.byFilm
+              .filter((s) => s.accuracy < 90)
+              .sort((a, b) => a.accuracy - b.accuracy)
+              .map((s) => s.name);
+
+            weakCategories = detailedStats.byCategory
+              .filter((s) => s.accuracy < 90)
+              .sort((a, b) => a.accuracy - b.accuracy)
+              .map((s) => s.name);
+          }
 
           // Score each flashcard based on weakness (lower accuracy = higher priority)
           // Also factor in recency penalty

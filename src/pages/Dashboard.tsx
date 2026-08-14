@@ -62,6 +62,16 @@ function ProfileStatsCard({
     detailedStats.byFilm.some((s) => s.accuracy < 70) ||
     detailedStats.byCategory.some((s) => s.accuracy < 70);
 
+  // If no weak areas, check for areas that could be improved (< 90%)
+  const hasImprovementAreas =
+    !hasWeakAreas && (
+      detailedStats.byFilm.some((s) => s.accuracy < 90) ||
+      detailedStats.byCategory.some((s) => s.accuracy < 90)
+    );
+
+  // Show practice button if either weak or improvement areas exist
+  const showPracticeButton = hasWeakAreas || hasImprovementAreas;
+
   if (stats.completedRounds === 0) {
     return (
       <div className="card">
@@ -142,8 +152,8 @@ function ProfileStatsCard({
         </div>
       )}
 
-      {/* Practice Weak Areas button */}
-      {hasWeakAreas && (
+      {/* Practice Weak/Improvement Areas button */}
+      {showPracticeButton && (
         <button
           onClick={onPracticeWeakAreas}
           className="mt-4 w-full btn-secondary flex items-center justify-center gap-2"
@@ -162,7 +172,7 @@ function ProfileStatsCard({
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
           </svg>
-          Practice Weak Areas
+          {hasWeakAreas ? 'Practice Weak Areas' : 'Strengthen Lower Areas'}
         </button>
       )}
 
