@@ -3,6 +3,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
   orderBy,
@@ -10,6 +11,7 @@ import {
   getDocs,
   onSnapshot,
   Unsubscribe,
+  increment,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { BattlePlayerProfile, BattleResult, LeaderboardEntry } from '../types/battlePlayer';
@@ -150,6 +152,7 @@ export async function getLeaderboard(maxPlayers: number = 5): Promise<Leaderboar
 
 /**
  * Update player stats after a battle
+ * Uses atomic increments for counters to prevent race conditions
  * @param playerName - The player's name
  * @param placement - The player's placement (1, 2, 3, or 4)
  * @param correct - Number of correct answers
@@ -164,43 +167,48 @@ export async function updatePlayerStats(
   if (!isFirebaseConfigured()) return false;
 
   try {
+    // We still need to read for streak logic (conditional updates)
     const player = await getPlayer(playerName);
     if (!player) {
       console.error('Player not found:', playerName);
       return false;
     }
 
-    const updates: Partial<BattlePlayerProfile> = {
-      totalBattles: player.totalBattles + 1,
-      totalCorrect: player.totalCorrect + correct,
-      totalAnswered: player.totalAnswered + answered,
+    // Use atomic increments for counters to prevent race conditions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {
+      totalBattles: increment(1),
+      totalCorrect: increment(correct),
+      totalAnswered: increment(answered),
       updatedAt: new Date().toISOString(),
     };
 
-    // Update placement-specific counters
+    // Update placement-specific counters with atomic increments
     switch (placement) {
       case 1:
-        updates.firstPlaces = (player.firstPlaces || 0) + 1;
-        updates.wins = (player.wins || 0) + 1;  // 1st place = win
-        updates.winStreak = player.winStreak + 1;
+        updates.firstPlaces = increment(1);
+        updates.wins = increment(1);
+        // Streak logic requires knowing current value
+        const newWinStreak = player.winStreak + 1;
+        updates.winStreak = newWinStreak;
         // Update longest streak if current exceeds it
-        if ((updates.winStreak || 0) > player.longestWinStreak) {
-          updates.longestWinStreak = updates.winStreak;
+        if (newWinStreak > player.longestWinStreak) {
+          updates.longestWinStreak = newWinStreak;
         }
         break;
       case 2:
-        updates.secondPlaces = (player.secondPlaces || 0) + 1;
-        updates.losses = (player.losses || 0) + 1;
+        updates.secondPlaces = increment(1);
+        updates.losses = increment(1);
         updates.winStreak = 0;  // Reset streak on non-win
         break;
       case 3:
-        updates.thirdPlaces = (player.thirdPlaces || 0) + 1;
-        updates.losses = (player.losses || 0) + 1;
+        updates.thirdPlaces = increment(1);
+        updates.losses = increment(1);
         updates.winStreak = 0;
         break;
       case 4:
-        updates.fourthPlaces = (player.fourthPlaces || 0) + 1;
-        updates.losses = (player.losses || 0) + 1;
+        updates.fourthPlaces = increment(1);
+        updates.losses = increment(1);
         updates.winStreak = 0;
         break;
     }
@@ -294,5 +302,23 @@ export function subscribeToAllLeaderboard(
   } catch (error) {
     console.error('Error setting up all leaderboard subscription:', error);
     return null;
+  }
+}
+
+/**
+ * Delete a player profile completely
+ * @param playerName - The player's name to delete
+ */
+export async function deletePlayer(playerName: string): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = getPlayerDocRef(playerName);
+    await deleteDoc(docRef);
+    console.log(`Deleted player: ${playerName}`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting player:', error);
+    return false;
   }
 }

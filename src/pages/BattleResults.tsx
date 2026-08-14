@@ -29,9 +29,14 @@ export default function BattleResults() {
     leaveBattle,
   } = useBattleStore();
 
-  // Update player stats when battle completes
+  // Update player stats when battle completes (only host does this to avoid race conditions)
   useEffect(() => {
     const updateStats = async () => {
+      // Only the host (player1) updates stats to prevent duplicate updates
+      if (playerKey !== 'player1') {
+        return;
+      }
+
       if (!battle || battle.status !== 'completed' || statsUpdatedRef.current) {
         return;
       }
@@ -68,7 +73,7 @@ export default function BattleResults() {
     };
 
     updateStats();
-  }, [battle]);
+  }, [battle, playerKey]);
 
   // Redirect if no battle data
   useEffect(() => {
