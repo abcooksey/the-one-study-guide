@@ -5,8 +5,9 @@ import { useAppStore } from '../store';
 import Flashcard from '../components/Flashcard';
 import ProgressBar from '../components/ProgressBar';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { OpponentProgress } from '../components/battle';
+import { OpponentProgress, SpectatorBadge } from '../components/battle';
 import { AttemptStatus } from '../types';
+import { getSpectatorCount } from '../lib/battleFirestore';
 
 export default function BattleSession() {
   const navigate = useNavigate();
@@ -101,6 +102,8 @@ export default function BattleSession() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCardFlipped, currentIndex, attempts]);
+
+  const spectatorCount = battle ? getSpectatorCount(battle) : 0;
 
   if (!battle || !currentPlayer) {
     return null;
@@ -199,10 +202,13 @@ export default function BattleSession() {
             .. Exit
           </button>
 
-          <div className="text-center">
+          <div className="text-center flex items-center justify-center gap-2">
             <h1 className="font-serif font-bold text-charcoal-900">
-              .. Battle Mode
+              Battle Mode
             </h1>
+            {spectatorCount > 0 && (
+              <SpectatorBadge count={spectatorCount} />
+            )}
           </div>
 
           <div className="text-sm font-medium text-charcoal-600">

@@ -381,9 +381,12 @@ export default function Dashboard() {
 
       {/* Battle Mode */}
       <div className="mb-12">
-        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-6 text-center sm:text-left">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-2">
           Battle Mode
         </h2>
+        <p className="text-charcoal-500 text-sm mb-6">
+          Challenge a friend to a real-time trivia battle!
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
@@ -421,12 +424,54 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        <p className="text-center text-charcoal-500 text-sm mt-4">
-          Challenge a friend to a real-time trivia battle!
-        </p>
-
         {/* Leaderboard */}
         <BattleLeaderboard />
+      </div>
+
+      {/* Tournament Mode */}
+      <div className="mb-12">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-2">
+          Tournament Mode
+        </h2>
+        <p className="text-charcoal-500 text-sm mb-6">
+          Bracket-style elimination for 4, 8, or 16 players
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            to="/tournament?mode=create"
+            className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                🏆
+              </div>
+              <div>
+                <h3 className="font-medium text-purple-900 text-lg">Create Tournament</h3>
+                <p className="text-sm text-purple-600">
+                  Host a bracket and invite players
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/tournament?mode=join"
+            className="card hover:shadow-card-hover transition-shadow group bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                🎖️
+              </div>
+              <div>
+                <h3 className="font-medium text-amber-900 text-lg">Join Tournament</h3>
+                <p className="text-sm text-amber-600">
+                  Enter a tournament code
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
       </div>
 
       {/* Quick Actions */}
