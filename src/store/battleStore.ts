@@ -38,10 +38,19 @@ const STALE_HEARTBEAT_THRESHOLD = 15000; // 15 seconds
 // All player keys for iteration
 const ALL_PLAYER_KEYS: PlayerKey[] = ['player1', 'player2', 'player3', 'player4'];
 
+// Stored configuration for rematch functionality
+interface LastBattleConfig {
+  maxPlayers: 2 | 3 | 4;
+  opponentNames: string[];  // Names of other players for display
+}
+
 interface BattleState {
   // Current battle state (synced from Firestore)
   battle: Battle | null;
   playerKey: PlayerKey | null;
+
+  // Rematch support
+  lastBattleConfig: LastBattleConfig | null;
 
   // UI state
   isLoading: boolean;
@@ -55,6 +64,13 @@ interface BattleState {
 
   // Actions
   createBattle: (player: CreateBattlePlayerInput, flashcards: Flashcard[], maxPlayers?: 2 | 3 | 4) => Promise<string | null>;
+  createTournamentBattle: (
+    player1: CreateBattlePlayerInput,
+    player2: CreateBattlePlayerInput,
+    currentPlayerName: string,
+    flashcards: Flashcard[]
+  ) => Promise<string | null>;
+  joinTournamentBattle: (code: string, playerName: string) => Promise<boolean>;
   joinBattle: (code: string, player: CreateBattlePlayerInput) => Promise<boolean>;
   setReady: (isReady: boolean) => Promise<void>;
   startGame: () => Promise<void>;  // Any player can start when 2+ ready
@@ -62,6 +78,7 @@ interface BattleState {
   goToQuestion: (index: number) => Promise<void>;
   finishBattle: () => Promise<void>;
   leaveBattle: () => void;
+  createRematch: (player: CreateBattlePlayerInput, flashcards: Flashcard[]) => Promise<string | null>;
 
   // Internal actions
   subscribeToBattleUpdates: (code: string) => void;
@@ -93,6 +110,7 @@ interface BattleState {
 export const useBattleStore = create<BattleState>()((set, get) => ({
   battle: null,
   playerKey: null,
+  lastBattleConfig: null,
   isLoading: false,
   error: null,
   countdownSeconds: COUNTDOWN_SECONDS,
@@ -174,6 +192,140 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       console.error('Error creating battle:', error);
       set({ error: 'Failed to create battle', isLoading: false });
       return null;
+    }
+  },
+
+  // Create a tournament battle with both players pre-configured and auto-started
+  createTournamentBattle: async (player1Input, player2Input, currentPlayerName, flashcards) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      // Generate unique code
+      let code = generateBattleCode();
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (await battleExists(code) && attempts < maxAttempts) {
+        code = generateBattleCode();
+        attempts++;
+      }
+
+      if (attempts >= maxAttempts) {
+        set({ error: 'Could not generate unique battle code', isLoading: false });
+        return null;
+      }
+
+      // Select 20 random questions
+      const availableFlashcards = flashcards.filter((f) => !f.flag);
+      if (availableFlashcards.length < QUESTIONS_PER_BATTLE) {
+        set({ error: 'Not enough flashcards available', isLoading: false });
+        return null;
+      }
+
+      const shuffled = [...availableFlashcards].sort(() => Math.random() - 0.5);
+      const selectedIds = shuffled.slice(0, QUESTIONS_PER_BATTLE).map((f) => f.id);
+
+      // Create both players
+      const player1: BattlePlayer = {
+        name: player1Input.name,
+        emoji: player1Input.emoji,
+        isReady: true, // Auto-ready for tournament
+        isConnected: true,
+        lastHeartbeat: new Date().toISOString(),
+        currentQuestionIndex: 0,
+        attempts: selectedIds.map((id) => ({
+          flashcardId: id,
+          status: 'unanswered' as const,
+        })),
+      };
+
+      const player2: BattlePlayer = {
+        name: player2Input.name,
+        emoji: player2Input.emoji,
+        isReady: true, // Auto-ready for tournament
+        isConnected: true,
+        lastHeartbeat: new Date().toISOString(),
+        currentQuestionIndex: 0,
+        attempts: selectedIds.map((id) => ({
+          flashcardId: id,
+          status: 'unanswered' as const,
+        })),
+      };
+
+      // Create battle with both players and status 'active'
+      const battle: Battle = {
+        id: code,
+        status: 'active', // Start immediately
+        questionIds: selectedIds,
+        player1,
+        player2,
+        player3: null,
+        player4: null,
+        maxPlayers: 2,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        battleStartedAt: new Date().toISOString(), // Set start time for tournament battles
+      };
+
+      const success = await createBattleFirestore(battle);
+      if (!success) {
+        set({ error: 'Failed to create tournament battle', isLoading: false });
+        return null;
+      }
+
+      // Determine which player key the current player is
+      const isPlayer1 = currentPlayerName.toLowerCase() === player1Input.name.toLowerCase();
+      const playerKey: PlayerKey = isPlayer1 ? 'player1' : 'player2';
+
+      set({ playerKey, isLoading: false });
+      get().subscribeToBattleUpdates(code);
+      get().startHeartbeat();
+      get().setupBeforeUnload();
+
+      return code;
+    } catch (error) {
+      console.error('Error creating tournament battle:', error);
+      set({ error: 'Failed to create tournament battle', isLoading: false });
+      return null;
+    }
+  },
+
+  // Join an existing tournament battle (for the second player)
+  joinTournamentBattle: async (code, playerName) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const existingBattle = await getBattle(code);
+      if (!existingBattle) {
+        set({ error: 'Battle not found', isLoading: false });
+        return false;
+      }
+
+      // Find which player slot matches this player's name
+      let playerKey: PlayerKey | null = null;
+      if (existingBattle.player1?.name.toLowerCase() === playerName.toLowerCase()) {
+        playerKey = 'player1';
+      } else if (existingBattle.player2?.name.toLowerCase() === playerName.toLowerCase()) {
+        playerKey = 'player2';
+      }
+
+      if (!playerKey) {
+        set({ error: 'You are not a participant in this battle', isLoading: false });
+        return false;
+      }
+
+      // Update heartbeat to mark as connected
+      await updatePlayerHeartbeat(code, playerKey);
+
+      set({ playerKey, isLoading: false });
+      get().subscribeToBattleUpdates(code);
+      get().startHeartbeat();
+      get().setupBeforeUnload();
+
+      return true;
+    } catch (error) {
+      console.error('Error joining tournament battle:', error);
+      set({ error: 'Failed to join tournament battle', isLoading: false });
+      return false;
     }
   },
 
@@ -323,7 +475,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       clearInterval(state.countdownInterval);
     }
 
-    // Reset state
+    // Reset state (preserve lastBattleConfig for rematch)
     set({
       battle: null,
       playerKey: null,
@@ -334,6 +486,18 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
       heartbeatInterval: null,
       countdownInterval: null,
     });
+  },
+
+  createRematch: async (player, flashcards) => {
+    const { lastBattleConfig } = get();
+    if (!lastBattleConfig) {
+      set({ error: 'No previous battle to rematch' });
+      return null;
+    }
+
+    // Use the same maxPlayers from the previous battle
+    const code = await get().createBattle(player, flashcards, lastBattleConfig.maxPlayers);
+    return code;
   },
 
   subscribeToBattleUpdates: (code) => {
@@ -414,6 +578,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     }
 
     const previousBattle = get().battle;
+    const { playerKey } = get();
     set({ battle });
 
     // Clean up stale players (only host does this during lobby phase)
@@ -425,12 +590,28 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     }
 
     // Check if battle should complete (all players finished)
-    if (battle.status === 'active' && get().allPlayersFinished()) {
+    // Only proceed if rankings don't exist yet (idempotency check)
+    if (battle.status === 'active' && !battle.rankings && get().allPlayersFinished()) {
       // All finished - determine rankings (only host does this)
       if (get().isHost()) {
         const rankings = get().determineRankings();
         completeBattle(battle.id, rankings);
       }
+    }
+
+    // Save battle config when battle completes (for rematch functionality)
+    if (battle.status === 'completed' && previousBattle?.status !== 'completed') {
+      const activePlayers = getActivePlayers(battle);
+      const opponentNames = activePlayers
+        .filter(({ key }) => key !== playerKey)
+        .map(({ player }) => player.name);
+
+      set({
+        lastBattleConfig: {
+          maxPlayers: battle.maxPlayers,
+          opponentNames,
+        },
+      });
     }
   },
 
@@ -572,13 +753,25 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     const incorrect = player.attempts.filter((a) => a.status === 'incorrect').length;
     const total = correct + incorrect;
 
-    const startTime = battle.battleStartedAt ? new Date(battle.battleStartedAt).getTime() : 0;
+    // Robust start time calculation with multiple fallbacks
+    let startTime: number;
+    if (battle.battleStartedAt) {
+      startTime = new Date(battle.battleStartedAt).getTime();
+    } else if (battle.countdownStartedAt) {
+      // Fallback: countdown + 10 seconds (countdown duration)
+      startTime = new Date(battle.countdownStartedAt).getTime() + 10000;
+    } else {
+      // Last resort: use first answer time minus small buffer
+      const firstAnswer = player.attempts.find(a => a.answeredAt);
+      startTime = firstAnswer?.answeredAt ? new Date(firstAnswer.answeredAt).getTime() - 5000 : Date.now();
+    }
+
     const endTime = player.finishedAt ? new Date(player.finishedAt).getTime() : Date.now();
 
     return {
       correct,
       incorrect,
-      totalTime: endTime - startTime,
+      totalTime: Math.max(0, endTime - startTime), // Ensure non-negative
       accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
   },
@@ -594,13 +787,25 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     const incorrect = player.attempts.filter((a) => a.status === 'incorrect').length;
     const total = correct + incorrect;
 
-    const startTime = battle.battleStartedAt ? new Date(battle.battleStartedAt).getTime() : 0;
+    // Robust start time calculation with multiple fallbacks
+    let startTime: number;
+    if (battle.battleStartedAt) {
+      startTime = new Date(battle.battleStartedAt).getTime();
+    } else if (battle.countdownStartedAt) {
+      // Fallback: countdown + 10 seconds (countdown duration)
+      startTime = new Date(battle.countdownStartedAt).getTime() + 10000;
+    } else {
+      // Last resort: use first answer time minus small buffer
+      const firstAnswer = player.attempts.find(a => a.answeredAt);
+      startTime = firstAnswer?.answeredAt ? new Date(firstAnswer.answeredAt).getTime() - 5000 : Date.now();
+    }
+
     const endTime = player.finishedAt ? new Date(player.finishedAt).getTime() : Date.now();
 
     return {
       correct,
       incorrect,
-      totalTime: endTime - startTime,
+      totalTime: Math.max(0, endTime - startTime), // Ensure non-negative
       accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
   },

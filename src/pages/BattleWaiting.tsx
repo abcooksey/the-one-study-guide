@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBattleStore } from '../store/battleStore';
 import { BattlePlayer } from '../types/battle';
@@ -51,6 +51,11 @@ function OpponentWaitingCard({ opponent, totalQuestions }: { opponent: BattlePla
 export default function BattleWaiting() {
   const navigate = useNavigate();
   const { code } = useParams<{ code: string }>();
+  const [searchParams] = useSearchParams();
+
+  // Preserve tournament query params for navigation
+  const queryString = searchParams.toString();
+  const queryParams = queryString ? `?${queryString}` : '';
 
   const { battle, playerKey, getPlayerStats, getOpponents, leaveBattle } = useBattleStore();
 
@@ -61,9 +66,9 @@ export default function BattleWaiting() {
   // Navigate to results when battle is completed
   useEffect(() => {
     if (battle?.status === 'completed') {
-      navigate(`/battle/${code}/results`);
+      navigate(`/battle/${code}/results${queryParams}`);
     }
-  }, [battle?.status, code, navigate]);
+  }, [battle?.status, code, navigate, queryParams]);
 
   // Redirect if no battle
   useEffect(() => {

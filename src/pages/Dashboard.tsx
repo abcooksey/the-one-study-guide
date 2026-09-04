@@ -4,8 +4,11 @@ import { useAppStore } from '../store';
 import ProfileSelector from '../components/ProfileSelector';
 import DifficultyModeSelector from '../components/DifficultyModeSelector';
 import { BattleLeaderboard } from '../components/battle';
+import { ActiveTournaments } from '../components/tournament';
 import { getOverallTrend } from '../utils/stats';
 import { Profile, PerformanceStats, DifficultyMode, DetailedStats, StatBreakdown } from '../types';
+// Temporary: expose endAllOpenTournaments on window for admin use
+import '../lib/endAllTournaments';
 
 function StatBar({ stat }: { stat: StatBreakdown }) {
   return (
@@ -381,9 +384,12 @@ export default function Dashboard() {
 
       {/* Battle Mode */}
       <div className="mb-12">
-        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-6 text-center sm:text-left">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-2">
           Battle Mode
         </h2>
+        <p className="text-charcoal-500 text-sm mb-6">
+          Challenge a friend to a real-time trivia battle!
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
@@ -421,12 +427,59 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        <p className="text-center text-charcoal-500 text-sm mt-4">
-          Challenge a friend to a real-time trivia battle!
-        </p>
-
         {/* Leaderboard */}
         <BattleLeaderboard />
+      </div>
+
+      {/* Tournament Mode */}
+      <div className="mb-12 bg-parchment-50 rounded-2xl p-6 border border-parchment-200">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mb-2">
+          Tournament Mode
+        </h2>
+        <p className="text-charcoal-500 text-sm mb-6">
+          Bracket-style elimination for 4, 8, or 16 players
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Primary: Create Tournament */}
+          <Link
+            to="/tournament?mode=create"
+            className="rounded-xl p-4 hover:shadow-lg transition-all group bg-purple-600 hover:bg-purple-700 border border-purple-700"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                🏆
+              </div>
+              <div>
+                <h3 className="font-semibold text-white text-lg">Create Tournament</h3>
+                <p className="text-sm text-purple-200">
+                  Host a bracket
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          {/* Secondary: Join Tournament */}
+          <Link
+            to="/tournament?mode=join"
+            className="rounded-xl p-4 hover:shadow-lg transition-all group bg-white hover:bg-purple-50 border-2 border-purple-300 hover:border-purple-400"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-4xl group-hover:scale-110 transition-transform">
+                🎟️
+              </div>
+              <div>
+                <h3 className="font-semibold text-purple-900 text-lg">Join Tournament</h3>
+                <p className="text-sm text-purple-600">
+                  Enter a code
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Active Tournaments - for rejoining */}
+        <ActiveTournaments />
       </div>
 
       {/* Quick Actions */}

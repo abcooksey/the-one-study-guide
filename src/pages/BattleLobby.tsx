@@ -9,9 +9,10 @@ import {
   BattleLobbyCard,
   BattleCountdown,
   BattleNameModal,
+  SpectatorBadge,
 } from '../components/battle';
 import { CreateBattlePlayerInput, PlayerKey } from '../types/battle';
-import { getPlayerCount } from '../lib/battleFirestore';
+import { getPlayerCount, getSpectatorCount } from '../lib/battleFirestore';
 
 type LobbyMode = 'choose' | 'create' | 'join';
 
@@ -23,6 +24,10 @@ export default function BattleLobby() {
   const { code: urlCode } = useParams<{ code: string }>();
   const [searchParams] = useSearchParams();
   const modeParam = searchParams.get('mode');
+
+  // Preserve tournament query params for navigation
+  const queryString = searchParams.toString();
+  const queryParams = queryString ? `?${queryString}` : '';
 
   // Determine initial mode based on URL
   const getInitialMode = (): LobbyMode => {
@@ -75,9 +80,9 @@ export default function BattleLobby() {
   // Navigate to battle when it starts
   useEffect(() => {
     if (battle?.status === 'active') {
-      navigate(`/battle/${battle.id}/play`);
+      navigate(`/battle/${battle.id}/play${queryParams}`);
     }
-  }, [battle?.status, battle?.id, navigate]);
+  }, [battle?.status, battle?.id, navigate, queryParams]);
 
   // Handle create battle
   const handleCreateClick = () => {
@@ -135,6 +140,9 @@ export default function BattleLobby() {
   // Get player count
   const playerCount = battle ? getPlayerCount(battle) : 0;
 
+  // Get spectator count
+  const spectatorCount = battle ? getSpectatorCount(battle) : 0;
+
   // Show countdown overlay
   const showCountdown = battle?.status === 'countdown';
 
@@ -146,7 +154,12 @@ export default function BattleLobby() {
         <div className="max-w-4xl mx-auto">
           {/* Battle code */}
           <div className="mb-8">
-            <BattleCodeDisplay code={battle.id} />
+            <div className="flex items-center justify-center gap-3">
+              <BattleCodeDisplay code={battle.id} />
+              {spectatorCount > 0 && (
+                <SpectatorBadge count={spectatorCount} />
+              )}
+            </div>
           </div>
 
           {/* Players grid - always show 4 slots */}
@@ -273,6 +286,19 @@ export default function BattleLobby() {
               error={error}
             />
 
+            {joinCode.length === 4 && (
+              <button
+                onClick={() => navigate(`/battle/${joinCode}/spectate${queryParams}`)}
+                className="mt-4 w-full text-center text-brass-600 hover:text-brass-700 text-sm flex items-center justify-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Watch as spectator instead
+              </button>
+            )}
+
             <button
               onClick={() => modeParam ? navigate('/') : setLobbyMode('choose')}
               className="mt-6 w-full text-center text-charcoal-500 hover:text-charcoal-700 text-sm"
@@ -330,7 +356,6 @@ export default function BattleLobby() {
       {/* Name modal */}
       <BattleNameModal
         isOpen={showNameModal}
-        mode={pendingMode}
         onSubmit={handleNameSubmit}
         onCancel={handleNameModalCancel}
       />

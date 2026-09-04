@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { LeaderboardEntry } from '../../types/battlePlayer';
 import { subscribeToAllLeaderboard } from '../../lib/battlePlayerFirestore';
 
@@ -132,16 +133,35 @@ export default function BattleLeaderboard() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <Link
+                    to={`/battle/history?player=${encodeURIComponent(entry.player.name)}`}
+                    className="flex items-center gap-2 group"
+                    title={`View ${entry.player.displayName}'s battle history`}
+                  >
                     <img
                       src={entry.player.emoji}
                       alt={entry.player.displayName}
                       className="w-8 h-8 object-contain"
                     />
-                    <span className="font-medium text-charcoal-900">
+                    <span className="font-medium text-brass-600 underline underline-offset-2 decoration-brass-300 group-hover:text-brass-700 group-hover:decoration-brass-500 transition-colors">
                       {entry.player.displayName}
                     </span>
-                  </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-brass-400 group-hover:text-brass-600 transition-colors flex-shrink-0"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span className="font-bold text-forest-600">{entry.player.wins}</span>

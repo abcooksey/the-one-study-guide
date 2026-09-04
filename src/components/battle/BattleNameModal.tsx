@@ -6,7 +6,6 @@ import ReturningPlayerSelect from './ReturningPlayerSelect';
 
 interface BattleNameModalProps {
   isOpen: boolean;
-  mode: 'create' | 'join';
   onSubmit: (player: CreateBattlePlayerInput) => void;
   onCancel: () => void;
 }
@@ -32,36 +31,48 @@ const BATTLE_ICONS = [
 
 export default function BattleNameModal({
   isOpen,
-  mode,
   onSubmit,
   onCancel,
 }: BattleNameModalProps) {
   const [name, setName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(BATTLE_ICONS[0]);
   const [returningPlayer, setReturningPlayer] = useState<BattlePlayerProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate: must have returning player OR (name AND icon)
     if (returningPlayer) {
+      setError(null);
       onSubmit({
         name: returningPlayer.displayName,
         emoji: returningPlayer.emoji,
         isReturningPlayer: true,
       });
     } else if (name.trim()) {
+      setError(null);
       onSubmit({ name: name.trim(), emoji: selectedIcon.path });
+    } else {
+      setError('Please select a returning player or enter your name');
+    }
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (error && value.trim()) {
+      setError(null);
     }
   };
 
   const handleReturningPlayerSelect = (player: BattlePlayerProfile | null) => {
     setReturningPlayer(player);
     if (player) {
-      // Clear new player fields when selecting returning player
+      // Clear new player fields and error when selecting returning player
       setName('');
+      setError(null);
     }
   };
-
-  const isValid = returningPlayer !== null || name.trim().length > 0;
 
   return (
     <AnimatePresence>
@@ -82,7 +93,7 @@ export default function BattleNameModal({
             className="relative bg-gradient-to-b from-parchment-50 to-parchment-100 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-parchment-300 max-h-[90vh] overflow-y-auto"
           >
             <h2 className="text-2xl font-serif font-bold text-charcoal-900 text-center mb-2">
-              {mode === 'create' ? 'Create Battle' : 'Join Battle'}
+              Player Selection
             </h2>
             <p className="text-charcoal-600 text-center mb-6">
               Choose your battle identity
@@ -115,12 +126,36 @@ export default function BattleNameModal({
                     <input
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => handleNameChange(e.target.value)}
                       placeholder="Enter your name"
                       maxLength={5}
-                      className="w-full px-4 py-3 rounded-xl border-2 border-parchment-300 focus:border-forest-400 focus:outline-none focus:ring-2 focus:ring-forest-400/20 bg-white"
+                      className={`w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 ${
+                        error && !returningPlayer
+                          ? 'border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-400/20'
+                          : 'bg-white border-parchment-300 focus:border-forest-400 focus:ring-forest-400/20'
+                      }`}
                       autoFocus
                     />
+                    {error && !returningPlayer && (
+                      <div className="flex items-center gap-1.5 mt-2 text-red-600 text-sm">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                          <line x1="12" y1="9" x2="12" y2="13" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span>Enter your name</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Icon selector */}
@@ -179,16 +214,9 @@ export default function BattleNameModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!isValid}
-                  className={`
-                    flex-1 py-3 rounded-xl font-semibold transition-all
-                    ${isValid
-                      ? 'bg-forest-600 text-white hover:bg-forest-700'
-                      : 'bg-parchment-200 text-parchment-400 cursor-not-allowed'
-                    }
-                  `}
+                  className="flex-1 py-3 rounded-xl font-semibold transition-all bg-forest-600 text-white hover:bg-forest-700"
                 >
-                  {mode === 'create' ? 'Create Battle' : 'Join Battle'}
+                  Continue
                 </button>
               </div>
             </form>

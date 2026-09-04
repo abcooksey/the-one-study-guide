@@ -13,6 +13,10 @@ import BattleLobby from './pages/BattleLobby';
 import BattleSession from './pages/BattleSession';
 import BattleWaiting from './pages/BattleWaiting';
 import BattleResults from './pages/BattleResults';
+import BattleHistory from './pages/BattleHistory';
+import BattleSpectate from './pages/BattleSpectate';
+import TournamentLobby from './pages/TournamentLobby';
+import TournamentHistory from './pages/TournamentHistory';
 
 function App() {
   const initializeFlashcards = useAppStore((state) => state.initializeFlashcards);
@@ -39,10 +43,15 @@ function App() {
         <Route path="/edit/:id" element={<EditFlashcard />} />
         <Route path="/review" element={<ReviewQuestions />} />
         <Route path="/battle" element={<BattleLobby />} />
+        <Route path="/battle/history" element={<BattleHistory />} />
         <Route path="/battle/:code" element={<BattleLobby />} />
         <Route path="/battle/:code/play" element={<BattleSession />} />
         <Route path="/battle/:code/waiting" element={<BattleWaiting />} />
         <Route path="/battle/:code/results" element={<BattleResults />} />
+        <Route path="/battle/:code/spectate" element={<BattleSpectate />} />
+        <Route path="/tournament" element={<TournamentLobby />} />
+        <Route path="/tournament/history" element={<TournamentHistory />} />
+        <Route path="/tournament/:id" element={<TournamentLobby />} />
       </Routes>
     </Layout>
   );

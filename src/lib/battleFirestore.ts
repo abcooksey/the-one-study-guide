@@ -8,7 +8,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Battle, BattlePlayer, BattleAttempt, BattleStatus, PlayerKey } from '../types/battle';
+import { Battle, BattlePlayer, BattleAttempt, BattleStatus, PlayerKey, Spectator } from '../types/battle';
 import { isFirebaseConfigured } from './firestore';
 
 // Collection path for battles
@@ -434,4 +434,106 @@ export async function deleteBattle(battleCode: string): Promise<boolean> {
     console.error('Error deleting battle:', error);
     return false;
   }
+}
+
+/**
+ * Join a battle as a spectator
+ */
+export async function joinAsSpectator(
+  battleCode: string,
+  spectatorName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const battle = await getBattle(battleCode);
+    if (!battle) return false;
+
+    // Check if spectators are allowed (default to true)
+    if (battle.allowSpectators === false) return false;
+
+    // Create new spectator entry
+    const newSpectator: Spectator = {
+      name: spectatorName,
+      joinedAt: new Date().toISOString(),
+    };
+
+    // Add to spectators array (or create if doesn't exist)
+    const currentSpectators = battle.spectators || [];
+
+    // Check if spectator already exists
+    if (currentSpectators.some((s) => s.name.toLowerCase() === spectatorName.toLowerCase())) {
+      return true; // Already a spectator
+    }
+
+    const updatedSpectators = [...currentSpectators, newSpectator];
+
+    const docRef = getBattleDocRef(battleCode);
+    await updateDoc(docRef, {
+      spectators: updatedSpectators,
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error joining as spectator:', error);
+    return false;
+  }
+}
+
+/**
+ * Leave as a spectator
+ */
+export async function leaveAsSpectator(
+  battleCode: string,
+  spectatorName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const battle = await getBattle(battleCode);
+    if (!battle) return false;
+
+    const currentSpectators = battle.spectators || [];
+    const updatedSpectators = currentSpectators.filter(
+      (s) => s.name.toLowerCase() !== spectatorName.toLowerCase()
+    );
+
+    const docRef = getBattleDocRef(battleCode);
+    await updateDoc(docRef, {
+      spectators: updatedSpectators,
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error leaving as spectator:', error);
+    return false;
+  }
+}
+
+/**
+ * Toggle spectator mode for a battle (host only)
+ */
+export async function setAllowSpectators(
+  battleCode: string,
+  allow: boolean
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = getBattleDocRef(battleCode);
+    await updateDoc(docRef, {
+      allowSpectators: allow,
+    });
+    return true;
+  } catch (error) {
+    console.error('Error setting allow spectators:', error);
+    return false;
+  }
+}
+
+/**
+ * Get the number of spectators for a battle
+ */
+export function getSpectatorCount(battle: Battle): number {
+  return battle.spectators?.length || 0;
 }

@@ -7,3 +7,5 @@ export { default as OpponentProgress } from './OpponentProgress';
 export { default as BattleWinnerAnnouncement } from './BattleWinnerAnnouncement';
 export { default as ReturningPlayerSelect } from './ReturningPlayerSelect';
 export { default as BattleLeaderboard } from './BattleLeaderboard';
+export { default as BattleHistoryCard } from './BattleHistoryCard';
+export { default as SpectatorBadge } from './SpectatorBadge';

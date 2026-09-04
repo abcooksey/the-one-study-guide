@@ -6,12 +6,16 @@ interface BattleCodeInputProps {
   onSubmit: (code: string) => void;
   isLoading?: boolean;
   error?: string | null;
+  buttonText?: string;
+  loadingText?: string;
 }
 
 export default function BattleCodeInput({
   onSubmit,
   isLoading = false,
   error = null,
+  buttonText = 'Join Battle',
+  loadingText = 'Joining...',
 }: BattleCodeInputProps) {
   const [digits, setDigits] = useState(['', '', '', '']);
   const inputRefs = [
@@ -158,10 +162,10 @@ export default function BattleCodeInput({
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
             </span>
-            Joining...
+            {loadingText}
           </span>
         ) : (
-          'Join Battle'
+          buttonText
         )}
       </button>
     </div>

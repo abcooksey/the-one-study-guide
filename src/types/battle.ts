@@ -32,6 +32,12 @@ export interface BattlePlayer {
   finishedAt?: string;
 }
 
+// Spectator info stored in battle
+export interface Spectator {
+  name: string;
+  joinedAt: string;
+}
+
 export interface Battle {
   id: string;                    // 4-digit code (e.g., "7A3K")
   status: BattleStatus;
@@ -45,6 +51,10 @@ export interface Battle {
 
   // Battle configuration
   maxPlayers: 2 | 3 | 4;         // Set by host when creating
+
+  // Spectator support
+  spectators?: Spectator[];      // List of spectators watching
+  allowSpectators?: boolean;     // Host can disable (default: true)
 
   countdownStartedAt?: string;
   battleStartedAt?: string;
