@@ -10,18 +10,26 @@ import {
   getTournament,
   joinTournament as joinTournamentFirestore,
   leaveTournament as leaveTournamentFirestore,
+  forfeitFromTournament as forfeitFromTournamentFirestore,
+  cancelTournament as cancelTournamentFirestore,
   startTournament as startTournamentFirestore,
   setMatchBattleCode,
   completeMatch as completeMatchFirestore,
   subscribeToTournament,
   getNumRounds,
   getRoundName,
+  hasAnyMatchStarted,
+  updateTournamentPlayerHeartbeat,
+  markTournamentPlayerDisconnected,
 } from '../lib/tournamentFirestore';
+
+const HEARTBEAT_INTERVAL = 5000; // 5 seconds
 
 interface TournamentState {
   // Current tournament state (synced from Firestore)
   tournament: Tournament | null;
   playerName: string | null;
+  isSpectator: boolean;
 
   // UI state
   isLoading: boolean;
@@ -29,21 +37,32 @@ interface TournamentState {
 
   // Subscription
   unsubscribe: Unsubscribe | null;
+  heartbeatInterval: NodeJS.Timeout | null;
 
   // Actions
   createTournament: (input: CreateTournamentInput) => Promise<string | null>;
-  joinTournament: (tournamentId: string, name: string, emoji: string) => Promise<boolean>;
+  joinTournament: (tournamentId: string, name: string, emoji: string) => Promise<'joined' | 'joined_and_started' | false>;
   leaveTournament: () => Promise<boolean>;
+  forfeitTournament: () => Promise<boolean>;
+  cancelTournament: () => Promise<boolean>;
   startTournament: () => Promise<boolean>;
   createMatchBattle: (matchId: string, battleCode: string) => Promise<boolean>;
   completeMatch: (matchId: string, winnerName: string) => Promise<boolean>;
   loadTournament: (tournamentId: string, playerName: string) => Promise<boolean>;
+  loadTournamentAsSpectator: (tournamentId: string) => Promise<boolean>;
   clearTournament: () => void;
+
+  // Heartbeat actions
+  startHeartbeat: () => void;
+  stopHeartbeat: () => void;
+  setupBeforeUnload: () => void;
+  cleanupBeforeUnload: () => void;
 
   // Computed
   isHost: () => boolean;
   isRegistrationOpen: () => boolean;
   canStart: () => boolean;
+  hasMatchesStarted: () => boolean;
   getCurrentMatch: () => TournamentMatch | null;
   getPlayerMatch: () => TournamentMatch | null;
   getNumRounds: () => number;
@@ -53,8 +72,10 @@ interface TournamentState {
 export const useTournamentStore = create<TournamentState>()((set, get) => ({
   tournament: null,
   playerName: null,
+  isSpectator: false,
   isLoading: false,
   error: null,
+  heartbeatInterval: null,
   unsubscribe: null,
 
   createTournament: async (input) => {
@@ -90,8 +111,8 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const success = await joinTournamentFirestore(tournamentId, name, emoji);
-      if (!success) {
+      const result = await joinTournamentFirestore(tournamentId, name, emoji);
+      if (!result) {
         set({ error: 'Failed to join tournament', isLoading: false });
         return false;
       }
@@ -107,7 +128,7 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
         isLoading: false,
       });
 
-      return true;
+      return result; // 'joined' or 'joined_and_started'
     } catch (error) {
       console.error('Error joining tournament:', error);
       set({ error: 'Failed to join tournament', isLoading: false });
@@ -120,6 +141,43 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
     if (!tournament || !playerName) return false;
 
     const success = await leaveTournamentFirestore(tournament.id, playerName);
+    if (success) {
+      if (unsubscribe) unsubscribe();
+      set({
+        tournament: null,
+        playerName: null,
+        unsubscribe: null,
+      });
+    }
+    return success;
+  },
+
+  forfeitTournament: async () => {
+    const { tournament, playerName, unsubscribe } = get();
+    if (!tournament || !playerName) return false;
+
+    // Stop heartbeat and cleanup
+    get().stopHeartbeat();
+    get().cleanupBeforeUnload();
+
+    const success = await forfeitFromTournamentFirestore(tournament.id, playerName);
+    if (success) {
+      if (unsubscribe) unsubscribe();
+      set({
+        tournament: null,
+        playerName: null,
+        unsubscribe: null,
+        heartbeatInterval: null,
+      });
+    }
+    return success;
+  },
+
+  cancelTournament: async () => {
+    const { tournament, playerName, unsubscribe } = get();
+    if (!tournament || !playerName) return false;
+
+    const success = await cancelTournamentFirestore(tournament.id, playerName);
     if (success) {
       if (unsubscribe) unsubscribe();
       set({
@@ -188,6 +246,7 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
       set({
         tournament,
         playerName,
+        isSpectator: false,
         unsubscribe,
         isLoading: false,
       });
@@ -200,17 +259,105 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
     }
   },
 
+  loadTournamentAsSpectator: async (tournamentId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const tournament = await getTournament(tournamentId);
+      if (!tournament) {
+        set({ error: 'Tournament not found', isLoading: false });
+        return false;
+      }
+
+      // Subscribe to updates
+      const unsubscribe = subscribeToTournament(tournamentId, (t) => {
+        set({ tournament: t });
+      });
+
+      set({
+        tournament,
+        playerName: null,
+        isSpectator: true,
+        unsubscribe,
+        isLoading: false,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error loading tournament as spectator:', error);
+      set({ error: 'Failed to load tournament', isLoading: false });
+      return false;
+    }
+  },
+
   clearTournament: () => {
-    const { unsubscribe } = get();
+    const { unsubscribe, tournament, playerName } = get();
+
+    // Stop heartbeat and mark as disconnected
+    get().stopHeartbeat();
+    get().cleanupBeforeUnload();
+
+    if (tournament && playerName) {
+      markTournamentPlayerDisconnected(tournament.id, playerName);
+    }
+
     if (unsubscribe) unsubscribe();
 
     set({
       tournament: null,
       playerName: null,
+      isSpectator: false,
       unsubscribe: null,
+      heartbeatInterval: null,
       isLoading: false,
       error: null,
     });
+  },
+
+  startHeartbeat: () => {
+    const { tournament, playerName, isSpectator } = get();
+    if (!tournament || !playerName || isSpectator) return;
+
+    // Send initial heartbeat
+    updateTournamentPlayerHeartbeat(tournament.id, playerName);
+
+    // Set up interval
+    const interval = setInterval(() => {
+      const { tournament, playerName } = get();
+      if (tournament && playerName) {
+        updateTournamentPlayerHeartbeat(tournament.id, playerName);
+      }
+    }, HEARTBEAT_INTERVAL);
+
+    set({ heartbeatInterval: interval });
+  },
+
+  stopHeartbeat: () => {
+    const { heartbeatInterval } = get();
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      set({ heartbeatInterval: null });
+    }
+  },
+
+  setupBeforeUnload: () => {
+    const handleBeforeUnload = () => {
+      const { tournament, playerName } = get();
+      if (tournament && playerName) {
+        markTournamentPlayerDisconnected(tournament.id, playerName);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    (window as Window & { __tournamentBeforeUnload?: () => void }).__tournamentBeforeUnload = handleBeforeUnload;
+  },
+
+  cleanupBeforeUnload: () => {
+    const handler = (window as Window & { __tournamentBeforeUnload?: () => void }).__tournamentBeforeUnload;
+    if (handler) {
+      window.removeEventListener('beforeunload', handler);
+      delete (window as Window & { __tournamentBeforeUnload?: () => void }).__tournamentBeforeUnload;
+    }
   },
 
   isHost: () => {
@@ -232,6 +379,12 @@ export const useTournamentStore = create<TournamentState>()((set, get) => ({
       tournament.players.length >= 2 &&
       get().isHost()
     );
+  },
+
+  hasMatchesStarted: () => {
+    const { tournament } = get();
+    if (!tournament) return false;
+    return hasAnyMatchStarted(tournament);
   },
 
   getCurrentMatch: () => {

@@ -29,7 +29,10 @@ export default function BattleResults() {
   const tournamentUpdatedRef = useRef(false);
   const [rematchCode, setRematchCode] = useState<string | null>(null);
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
-  const [tournamentRedirectCountdown, setTournamentRedirectCountdown] = useState(3);
+
+  // State to track when data has stabilized from Firestore sync
+  const [isDataStable, setIsDataStable] = useState(false);
+  const lastRankingsRef = useRef<string | null>(null);
 
   // Check if this is a tournament battle
   const tournamentId = searchParams.get('tournament');
@@ -151,49 +154,69 @@ export default function BattleResults() {
     advanceTournamentWinner();
   }, [battle, playerKey, tournamentId, matchId, completeMatch]);
 
-  // Auto-redirect to tournament page after showing results briefly
+  // Wait for rankings to stabilize (same value for 500ms) to prevent race conditions
   useEffect(() => {
-    if (!tournamentId || !battle || battle.status !== 'completed') return;
+    if (!battle || battle.status !== 'completed' || !battle.rankings) {
+      setIsDataStable(false);
+      return;
+    }
 
-    // Countdown timer
-    const countdownInterval = setInterval(() => {
-      setTournamentRedirectCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          leaveBattle();
-          navigate(`/tournament/${tournamentId}`);
-          return 0;
+    const rankingsKey = battle.rankings.join(',');
+
+    if (lastRankingsRef.current !== rankingsKey) {
+      // Rankings changed - reset and wait for stabilization
+      lastRankingsRef.current = rankingsKey;
+      setIsDataStable(false);
+    }
+
+    // Always set a timer to mark as stable after 500ms
+    // This handles both initial load and subsequent updates
+    const timer = setTimeout(() => {
+      setIsDataStable(true);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [battle?.rankings?.join(','), battle?.status]);
+
+  // Redirect if no battle data - only if data is stable and still no valid battle
+  useEffect(() => {
+    // Give time for data to load before redirecting
+    if (!battle) {
+      const timer = setTimeout(() => {
+        if (!battle) {
+          navigate('/');
         }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(countdownInterval);
-  }, [tournamentId, battle, navigate, leaveBattle]);
-
-  // Redirect if no battle data
-  useEffect(() => {
-    if (!battle || battle.status !== 'completed') {
-      navigate('/');
+      }, 2000);
+      return () => clearTimeout(timer);
     }
   }, [battle, navigate]);
 
-  if (!battle || !playerKey || battle.status !== 'completed') {
-    return null;
+  // Show loading until data is stable to prevent race condition display issues
+  if (!battle || !playerKey || battle.status !== 'completed' || !isDataStable) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-parchment-100 to-parchment-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <p className="text-charcoal-600">Loading results...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Build stats map for all players
+  // Build stats map using rankings order to ensure consistency
   const playerStats: Record<PlayerKey, BattleStats | null> = {
-    player1: getStatsForPlayer('player1'),
-    player2: getStatsForPlayer('player2'),
-    player3: getStatsForPlayer('player3'),
-    player4: getStatsForPlayer('player4'),
+    player1: null,
+    player2: null,
+    player3: null,
+    player4: null,
   };
 
-  const handlePlayAgain = () => {
-    leaveBattle();
-    navigate('/battle');
-  };
+  // Only populate stats for players that exist in rankings
+  if (battle.rankings) {
+    for (const key of battle.rankings) {
+      playerStats[key] = getStatsForPlayer(key);
+    }
+  }
 
   const handleReturnHome = () => {
     leaveBattle();
@@ -273,19 +296,14 @@ export default function BattleResults() {
           transition={{ delay: 1.2 }}
           className="flex flex-col sm:flex-row gap-4 justify-center mt-12"
         >
-          {/* Tournament battle - auto-redirect with countdown */}
+          {/* Tournament battle - single button to return */}
           {tournamentId ? (
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-charcoal-600">
-                Returning to tournament in <span className="font-bold text-brass-600">{tournamentRedirectCountdown}</span>...
-              </p>
-              <button
-                onClick={handleReturnToTournament}
-                className="btn-brass btn-lg"
-              >
-                Return Now
-              </button>
-            </div>
+            <button
+              onClick={handleReturnToTournament}
+              className="btn-primary btn-lg"
+            >
+              Return to Tournament
+            </button>
           ) : !rematchCode ? (
             <>
               <button
@@ -294,12 +312,6 @@ export default function BattleResults() {
                 className="btn-primary btn-lg"
               >
                 {isCreatingRematch ? 'Creating...' : 'Rematch'}
-              </button>
-              <button
-                onClick={handlePlayAgain}
-                className="btn-brass btn-lg"
-              >
-                Play Again
               </button>
               <button
                 onClick={handleReturnHome}

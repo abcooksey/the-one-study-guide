@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
 import { Battle, PlayerKey } from '../types/battle';
@@ -18,6 +18,11 @@ import { Unsubscribe } from 'firebase/firestore';
 export default function BattleSpectate() {
   const navigate = useNavigate();
   const { code } = useParams<{ code: string }>();
+  const [searchParams] = useSearchParams();
+
+  // Preserve tournament query params for navigation
+  const queryString = searchParams.toString();
+  const queryParams = queryString ? `?${queryString}` : '';
 
   const [battle, setBattle] = useState<Battle | null>(null);
   const [spectatorName, setSpectatorName] = useState('');
@@ -50,7 +55,7 @@ export default function BattleSpectate() {
 
         // Navigate to results when battle completes
         if (updatedBattle.status === 'completed') {
-          navigate(`/battle/${code}/results`);
+          navigate(`/battle/${code}/results${queryParams}`);
         }
       });
     };

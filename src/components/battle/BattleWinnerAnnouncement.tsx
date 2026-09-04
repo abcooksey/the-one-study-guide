@@ -46,10 +46,20 @@ export default function BattleWinnerAnnouncement({
   playerStats,
   currentPlayerKey,
 }: BattleWinnerAnnouncementProps) {
+  // Validate that all ranked players have valid data
+  const validRankings = rankings.filter(key => {
+    const player = players[key];
+    const stats = playerStats[key];
+    return player && stats;
+  });
+
+  // Use validated rankings if some players are missing data
+  const effectiveRankings = validRankings.length === rankings.length ? rankings : validRankings;
+
   // Determine current player's placement
-  const currentPlayerRank = rankings.indexOf(currentPlayerKey);
+  const currentPlayerRank = effectiveRankings.indexOf(currentPlayerKey);
   const isCurrentPlayerWinner = currentPlayerRank === 0;
-  const playerCount = rankings.length;
+  const playerCount = effectiveRankings.length;
 
   const getMessage = () => {
     const messages = isCurrentPlayerWinner ? LOTR_WIN_MESSAGES : LOTR_LOSE_MESSAGES;
@@ -118,8 +128,8 @@ export default function BattleWinnerAnnouncement({
         className="mb-8"
       >
         {/* 1st Place - Large and centered */}
-        {rankings.length > 0 && (() => {
-          const winnerKey = rankings[0];
+        {effectiveRankings.length > 0 && (() => {
+          const winnerKey = effectiveRankings[0];
           const winner = players[winnerKey];
           const winnerStats = playerStats[winnerKey];
           const { colors, podiumHeight } = getPlacementInfo(0);
@@ -147,11 +157,11 @@ export default function BattleWinnerAnnouncement({
         })()}
 
         {/* 2nd, 3rd, 4th Place - Row below */}
-        {rankings.length > 1 && (
+        {effectiveRankings.length > 1 && (
           <div className={`flex justify-center items-end gap-3 ${
             playerCount === 2 ? 'max-w-xs mx-auto' : playerCount === 3 ? 'max-w-md mx-auto' : 'max-w-2xl mx-auto'
           }`}>
-            {rankings.slice(1).map((key, index) => {
+            {effectiveRankings.slice(1).map((key, index) => {
               const rank = index + 1; // 1, 2, or 3 (for 2nd, 3rd, 4th place)
               const player = players[key];
               const stats = playerStats[key];
@@ -193,7 +203,7 @@ export default function BattleWinnerAnnouncement({
               : 'grid-cols-2 lg:grid-cols-4'
         }`}
       >
-        {rankings.map((key) => {
+        {effectiveRankings.map((key) => {
           const player = players[key];
           const stats = playerStats[key];
 

@@ -3,6 +3,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   Unsubscribe,
   collection,
@@ -108,27 +109,31 @@ export async function getTournament(tournamentId: string): Promise<Tournament | 
 
 /**
  * Join a tournament
+ * Works during registration or waiting_for_players status
+ * Returns 'joined' for normal join, 'joined_and_started' if joining filled the tournament and started it
  */
 export async function joinTournament(
   tournamentId: string,
   playerName: string,
   playerEmoji: string
-): Promise<boolean> {
+): Promise<'joined' | 'joined_and_started' | false> {
   if (!isFirebaseConfigured()) return false;
 
   try {
     const tournament = await getTournament(tournamentId);
     if (!tournament) return false;
 
-    // Check if registration is open
-    if (tournament.status !== 'registration') return false;
+    // Check if registration or waiting_for_players
+    if (tournament.status !== 'registration' && tournament.status !== 'waiting_for_players') {
+      return false;
+    }
 
     // Check if tournament is full
     if (tournament.players.length >= tournament.maxPlayers) return false;
 
     // Check if player already joined
     if (tournament.players.some((p) => p.name.toLowerCase() === playerName.toLowerCase())) {
-      return true; // Already joined
+      return 'joined'; // Already joined
     }
 
     // Add new player
@@ -140,13 +145,28 @@ export async function joinTournament(
     };
 
     const updatedPlayers = [...tournament.players, newPlayer];
-
     const docRef = getTournamentDocRef(tournamentId);
+
+    // If this was waiting_for_players and now full, regenerate bracket and start
+    if (tournament.status === 'waiting_for_players' && updatedPlayers.length === tournament.maxPlayers) {
+      const rounds = generateBracket(updatedPlayers, tournament.maxPlayers);
+
+      await updateDoc(docRef, {
+        players: updatedPlayers,
+        rounds,
+        currentRound: 1,
+        status: 'active',
+      });
+
+      return 'joined_and_started';
+    }
+
+    // Normal join
     await updateDoc(docRef, {
       players: updatedPlayers,
     });
 
-    return true;
+    return 'joined';
   } catch (error) {
     console.error('Error joining tournament:', error);
     return false;
@@ -190,6 +210,37 @@ export async function leaveTournament(
     return true;
   } catch (error) {
     console.error('Error leaving tournament:', error);
+    return false;
+  }
+}
+
+/**
+ * Cancel a tournament (host only, during registration)
+ * Deletes the tournament entirely
+ */
+export async function cancelTournament(
+  tournamentId: string,
+  hostName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) return false;
+
+    // Only during registration
+    if (tournament.status !== 'registration') return false;
+
+    // Only host can cancel
+    if (hostName.toLowerCase() !== tournament.hostName.toLowerCase()) return false;
+
+    // Delete the tournament
+    const docRef = getTournamentDocRef(tournamentId);
+    await deleteDoc(docRef);
+
+    return true;
+  } catch (error) {
+    console.error('Error cancelling tournament:', error);
     return false;
   }
 }
@@ -365,9 +416,12 @@ export async function completeMatch(
     }));
 
     // Mark loser as eliminated
-    const loserName = updatedRounds[matchRound - 1].matches[matchIndex].player1Name === winnerName
-      ? updatedRounds[matchRound - 1].matches[matchIndex].player2Name
-      : updatedRounds[matchRound - 1].matches[matchIndex].player1Name;
+    // Use case-insensitive comparison to handle name casing differences between battle and tournament
+    const matchPlayer1 = updatedRounds[matchRound - 1].matches[matchIndex].player1Name;
+    const matchPlayer2 = updatedRounds[matchRound - 1].matches[matchIndex].player2Name;
+    const loserName = matchPlayer1?.toLowerCase() === winnerName.toLowerCase()
+      ? matchPlayer2
+      : matchPlayer1;
 
     const updatedPlayers = tournament.players.map((p) => {
       if (p.name.toLowerCase() === loserName?.toLowerCase()) {
@@ -502,6 +556,39 @@ export async function getPlayerTournaments(playerName: string): Promise<Tourname
 }
 
 /**
+ * Get in-progress tournaments (for rejoining)
+ * Returns tournaments with status 'active' or 'waiting_for_players' (in progress)
+ */
+export async function getActiveTournaments(): Promise<Tournament[]> {
+  if (!isFirebaseConfigured()) return [];
+
+  try {
+    const tournamentsRef = collection(db, TOURNAMENTS_COLLECTION);
+    // Get tournaments that are in progress (active or waiting for replacement players)
+    const q = query(
+      tournamentsRef,
+      where('status', 'in', ['active', 'waiting_for_players'])
+    );
+    const querySnapshot = await getDocs(q);
+
+    const tournaments: Tournament[] = [];
+    querySnapshot.forEach((doc) => {
+      tournaments.push(doc.data() as Tournament);
+    });
+
+    // Sort by createdAt client-side
+    tournaments.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return tournaments;
+  } catch (error) {
+    console.error('Error getting active tournaments:', error);
+    return [];
+  }
+}
+
+/**
  * Get the number of rounds in a tournament
  */
 export function getNumRounds(size: TournamentSize): number {
@@ -523,4 +610,425 @@ export function getRoundName(roundNumber: number, totalRounds: number): string {
     default:
       return `Round ${roundNumber}`;
   }
+}
+
+/**
+ * Check if any match has started in the tournament
+ * A match is considered "started" if it has status 'active', 'completed', or has a battleCode
+ */
+export function hasAnyMatchStarted(tournament: Tournament): boolean {
+  if (!tournament.rounds || tournament.rounds.length === 0) return false;
+
+  return tournament.rounds.some(round =>
+    round.matches.some(match =>
+      match.status === 'active' || match.status === 'completed' || match.battleCode
+    )
+  );
+}
+
+// Heartbeat threshold - player is considered inactive after this many ms
+const TOURNAMENT_HEARTBEAT_THRESHOLD = 10000; // 10 seconds
+
+/**
+ * Update a player's heartbeat in a tournament
+ */
+export async function updateTournamentPlayerHeartbeat(
+  tournamentId: string,
+  playerName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) return false;
+
+    const updatedPlayers = tournament.players.map((p) => {
+      if (p.name.toLowerCase() === playerName.toLowerCase()) {
+        return {
+          ...p,
+          isConnected: true,
+          lastHeartbeat: new Date().toISOString(),
+        };
+      }
+      return p;
+    });
+
+    const docRef = getTournamentDocRef(tournamentId);
+    await updateDoc(docRef, { players: updatedPlayers });
+    return true;
+  } catch (error) {
+    console.error('Error updating tournament player heartbeat:', error);
+    return false;
+  }
+}
+
+/**
+ * Mark a player as disconnected from a tournament
+ */
+export async function markTournamentPlayerDisconnected(
+  tournamentId: string,
+  playerName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) return false;
+
+    const updatedPlayers = tournament.players.map((p) => {
+      if (p.name.toLowerCase() === playerName.toLowerCase()) {
+        return {
+          ...p,
+          isConnected: false,
+        };
+      }
+      return p;
+    });
+
+    const docRef = getTournamentDocRef(tournamentId);
+    await updateDoc(docRef, { players: updatedPlayers });
+    return true;
+  } catch (error) {
+    console.error('Error marking tournament player disconnected:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a tournament player is currently active (has recent heartbeat)
+ */
+export function isTournamentPlayerActive(player: TournamentPlayer): boolean {
+  if (!player.isConnected || !player.lastHeartbeat) return false;
+
+  const lastHeartbeat = new Date(player.lastHeartbeat).getTime();
+  const now = Date.now();
+
+  return now - lastHeartbeat < TOURNAMENT_HEARTBEAT_THRESHOLD;
+}
+
+/**
+ * Get recently completed tournaments (with a winner)
+ * Only returns tournaments completed within the last 24 hours
+ */
+export async function getCompletedTournaments(): Promise<Tournament[]> {
+  if (!isFirebaseConfigured()) return [];
+
+  try {
+    const tournamentsRef = collection(db, TOURNAMENTS_COLLECTION);
+    const q = query(
+      tournamentsRef,
+      where('status', '==', 'completed')
+    );
+    const querySnapshot = await getDocs(q);
+
+    const tournaments: Tournament[] = [];
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+    querySnapshot.forEach((doc) => {
+      const tournament = doc.data() as Tournament;
+      // Only include tournaments with a winner that were completed recently
+      if (tournament.winner && new Date(tournament.createdAt).getTime() > oneDayAgo) {
+        tournaments.push(tournament);
+      }
+    });
+
+    // Sort by createdAt client-side (most recent first)
+    tournaments.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return tournaments;
+  } catch (error) {
+    console.error('Error getting completed tournaments:', error);
+    return [];
+  }
+}
+
+/**
+ * Forfeit/withdraw from a tournament permanently
+ * - During registration: Removes player completely, spot opens up
+ * - During active/waiting_for_players with NO matches started: Remove player, set to waiting_for_players
+ * - During active with matches started: Marks player as forfeited, auto-advances opponents
+ */
+export async function forfeitFromTournament(
+  tournamentId: string,
+  playerName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) return false;
+
+    const docRef = getTournamentDocRef(tournamentId);
+
+    // During registration: Remove player completely
+    if (tournament.status === 'registration') {
+      // Remove player from list
+      const updatedPlayers = tournament.players.filter(
+        (p) => p.name.toLowerCase() !== playerName.toLowerCase()
+      );
+
+      // Re-seed remaining players
+      updatedPlayers.forEach((p, i) => {
+        p.seed = i + 1;
+      });
+
+      await updateDoc(docRef, {
+        players: updatedPlayers,
+      });
+
+      return true;
+    }
+
+    // During active or waiting_for_players tournament
+    if (tournament.status === 'active' || tournament.status === 'waiting_for_players') {
+      const matchesHaveStarted = hasAnyMatchStarted(tournament);
+
+      // If NO matches have started yet, remove player and wait for replacement
+      if (!matchesHaveStarted) {
+        // Remove player from list
+        const updatedPlayers = tournament.players.filter(
+          (p) => p.name.toLowerCase() !== playerName.toLowerCase()
+        );
+
+        // If no players left, delete the tournament
+        if (updatedPlayers.length === 0) {
+          await deleteDoc(docRef);
+          return true;
+        }
+
+        // Re-seed remaining players
+        updatedPlayers.forEach((p, i) => {
+          p.seed = i + 1;
+        });
+
+        // Clear the bracket (will regenerate when full)
+        await updateDoc(docRef, {
+          players: updatedPlayers,
+          rounds: [],
+          currentRound: 0,
+          status: 'waiting_for_players',
+        });
+
+        return true;
+      }
+
+      // Matches HAVE started - forfeit behavior (existing logic)
+      // Find the player and mark as forfeited
+      let updatedPlayers = tournament.players.map((p) => {
+        if (p.name.toLowerCase() === playerName.toLowerCase()) {
+          return {
+            ...p,
+            eliminated: true,
+            forfeited: true,
+            eliminatedInRound: tournament.currentRound,
+          };
+        }
+        return p;
+      });
+
+      // Process all rounds to handle any matches this player is in
+      let updatedRounds = [...tournament.rounds];
+
+      // Find and auto-complete any pending/active matches where this player is involved
+      for (let roundIdx = 0; roundIdx < updatedRounds.length; roundIdx++) {
+        const round = updatedRounds[roundIdx];
+
+        for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
+          const match = round.matches[matchIdx];
+
+          // Skip completed matches
+          if (match.status === 'completed') continue;
+
+          const isPlayer1 = match.player1Name?.toLowerCase() === playerName.toLowerCase();
+          const isPlayer2 = match.player2Name?.toLowerCase() === playerName.toLowerCase();
+
+          if (isPlayer1 || isPlayer2) {
+            // Determine opponent (winner by forfeit)
+            const opponentName = isPlayer1 ? match.player2Name : match.player1Name;
+
+            if (opponentName) {
+              // Auto-complete the match with opponent as winner
+              updatedRounds[roundIdx].matches[matchIdx] = {
+                ...match,
+                winner: opponentName,
+                status: 'completed',
+              };
+
+              // Advance winner to next round if not finals
+              const numRounds = updatedRounds.length;
+              if (round.roundNumber < numRounds) {
+                const nextMatchIndex = Math.floor(matchIdx / 2);
+                const isNextPlayer1 = matchIdx % 2 === 0;
+                const nextRound = updatedRounds[round.roundNumber]; // roundNumber is 1-indexed
+
+                if (nextRound && nextRound.matches[nextMatchIndex]) {
+                  if (isNextPlayer1) {
+                    nextRound.matches[nextMatchIndex].player1Name = opponentName;
+                  } else {
+                    nextRound.matches[nextMatchIndex].player2Name = opponentName;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Check if tournament is now complete
+      const numRounds = updatedRounds.length;
+      const finalRound = updatedRounds[numRounds - 1];
+      const isTournamentComplete = finalRound.matches.every((m) => m.status === 'completed');
+
+      // Determine current round
+      let currentRound = numRounds;
+      for (let i = 0; i < numRounds; i++) {
+        if (updatedRounds[i].matches.some((m) => m.status !== 'completed')) {
+          currentRound = i + 1;
+          break;
+        }
+      }
+
+      // Build final rankings if complete
+      let finalRankings: string[] | undefined;
+      let winner: string | undefined;
+
+      if (isTournamentComplete) {
+        winner = finalRound.matches[0].winner;
+
+        // Build rankings from elimination order
+        const eliminated = updatedPlayers
+          .filter((p) => p.eliminated && p.eliminatedInRound !== undefined)
+          .sort((a, b) => (b.eliminatedInRound || 0) - (a.eliminatedInRound || 0))
+          .map((p) => p.name);
+
+        finalRankings = [winner!, ...eliminated];
+      }
+
+      await updateDoc(docRef, {
+        rounds: updatedRounds,
+        players: updatedPlayers,
+        currentRound,
+        status: isTournamentComplete ? 'completed' : 'active',
+        ...(winner && { winner }),
+        ...(finalRankings && { finalRankings }),
+      });
+
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error forfeiting from tournament:', error);
+    return false;
+  }
+}
+
+/**
+ * Get ALL completed tournaments (for history page)
+ * No time limit - returns all completed tournaments with a winner
+ */
+export async function getAllCompletedTournaments(): Promise<Tournament[]> {
+  if (!isFirebaseConfigured()) return [];
+
+  try {
+    const tournamentsRef = collection(db, TOURNAMENTS_COLLECTION);
+    const q = query(
+      tournamentsRef,
+      where('status', '==', 'completed')
+    );
+    const querySnapshot = await getDocs(q);
+
+    const tournaments: Tournament[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const tournament = doc.data() as Tournament;
+      // Only include tournaments with a winner
+      if (tournament.winner) {
+        tournaments.push(tournament);
+      }
+    });
+
+    // Sort by createdAt client-side (most recent first)
+    tournaments.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return tournaments;
+  } catch (error) {
+    console.error('Error getting all completed tournaments:', error);
+    return [];
+  }
+}
+
+/**
+ * Set which player an eliminated player is rooting for ("Pick Your Champion")
+ * Just for fun - no stakes, keeps eliminated players engaged
+ */
+export async function setRootingFor(
+  tournamentId: string,
+  playerName: string,
+  championName: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) return false;
+
+    // Verify the player is eliminated
+    const player = tournament.players.find(
+      p => p.name.toLowerCase() === playerName.toLowerCase()
+    );
+    if (!player || !player.eliminated) return false;
+
+    // Verify the champion is still in the tournament (not eliminated)
+    const champion = tournament.players.find(
+      p => p.name.toLowerCase() === championName.toLowerCase()
+    );
+    if (!champion || champion.eliminated) return false;
+
+    // Update the player's rootingFor field
+    const updatedPlayers = tournament.players.map(p => {
+      if (p.name.toLowerCase() === playerName.toLowerCase()) {
+        return { ...p, rootingFor: championName };
+      }
+      return p;
+    });
+
+    const docRef = getTournamentDocRef(tournamentId);
+    await updateDoc(docRef, { players: updatedPlayers });
+    return true;
+  } catch (error) {
+    console.error('Error setting rooting for:', error);
+    return false;
+  }
+}
+
+/**
+ * Get the fan count for each remaining player in a tournament
+ * Returns a map of player name -> number of fans rooting for them
+ */
+export function getFanCounts(tournament: Tournament): Record<string, number> {
+  const fanCounts: Record<string, number> = {};
+
+  // Initialize counts for all non-eliminated players
+  tournament.players
+    .filter(p => !p.eliminated)
+    .forEach(p => {
+      fanCounts[p.name] = 0;
+    });
+
+  // Count how many are rooting for each player
+  tournament.players
+    .filter(p => p.eliminated && p.rootingFor)
+    .forEach(p => {
+      const champion = p.rootingFor!;
+      if (fanCounts[champion] !== undefined) {
+        fanCounts[champion]++;
+      }
+    });
+
+  return fanCounts;
 }

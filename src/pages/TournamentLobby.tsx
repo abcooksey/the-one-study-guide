@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useBattleStore } from '../store/battleStore';
 import { useAppStore } from '../store';
-import { BracketView, TournamentLeaderboard, TournamentActionCard } from '../components/tournament';
+import { BracketView, TournamentLeaderboard, TournamentActionCard, CompletedTournamentView } from '../components/tournament';
 import { BattleNameModal, BattleCodeDisplay, BattleCodeInput } from '../components/battle';
 import { TournamentSize, TournamentMatch, CreateTournamentInput } from '../types/tournament';
 
@@ -46,11 +46,17 @@ function HowItWorks() {
           className="bg-white rounded-xl p-4 flex-1 shadow-sm border border-parchment-200
             flex items-center sm:flex-col sm:text-center gap-3 sm:gap-2"
         >
+          <div className="hidden sm:block text-xs font-medium text-charcoal-400 uppercase tracking-wide mb-1">
+            Step {index + 1}
+          </div>
           <div className={`${step.iconBg} w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-2xl sm:text-3xl`}>
             {step.icon}
           </div>
           <div className="flex-1 sm:flex-none">
-            <div className="font-semibold text-charcoal-800">{step.title}</div>
+            <div className="font-semibold text-charcoal-800">
+              <span className="sm:hidden text-charcoal-400 font-normal mr-1">{index + 1}.</span>
+              {step.title}
+            </div>
             <p className="text-sm text-charcoal-500">{step.description}</p>
           </div>
         </motion.div>
@@ -59,17 +65,193 @@ function HowItWorks() {
   );
 }
 
+// Forfeit confirmation modal
+function ForfeitConfirmationModal({
+  isOpen,
+  isRegistration,
+  onConfirm,
+  onCancel,
+  isLoading,
+}: {
+  isOpen: boolean;
+  isRegistration: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        onClick={onCancel}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-center mb-4">
+            <div className="text-4xl mb-3">
+              {isRegistration ? '👋' : '🏳️'}
+            </div>
+            <h3 className="font-serif font-bold text-xl text-charcoal-900">
+              {isRegistration ? 'Withdraw from Tournament?' : 'Forfeit & Leave?'}
+            </h3>
+          </div>
+
+          <p className="text-charcoal-600 text-sm text-center mb-6">
+            {isRegistration ? (
+              <>
+                Your spot will be given to another player.
+                <span className="block mt-2 font-medium text-charcoal-800">
+                  This cannot be undone.
+                </span>
+              </>
+            ) : (
+              <>
+                You will forfeit any remaining matches and be marked as eliminated.
+                <span className="block mt-2 font-medium text-charcoal-800">
+                  This cannot be undone.
+                </span>
+              </>
+            )}
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              disabled={isLoading}
+              className="flex-1 px-4 py-3 rounded-lg border border-charcoal-200 text-charcoal-700 font-medium hover:bg-charcoal-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isLoading}
+              className="flex-1 px-4 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {isLoading ? 'Leaving...' : isRegistration ? 'Withdraw' : 'Forfeit & Leave'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Cancel tournament confirmation modal (host only)
+function CancelConfirmationModal({
+  isOpen,
+  onConfirm,
+  onCancel,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        onClick={onCancel}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-center mb-4">
+            <div className="text-4xl mb-3">🚫</div>
+            <h3 className="font-serif font-bold text-xl text-charcoal-900">
+              Cancel Tournament?
+            </h3>
+          </div>
+
+          <p className="text-charcoal-600 text-sm text-center mb-6">
+            This will end the tournament for all players.
+            <span className="block mt-2 font-medium text-charcoal-800">
+              This cannot be undone.
+            </span>
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              disabled={isLoading}
+              className="flex-1 px-4 py-3 rounded-lg border border-charcoal-200 text-charcoal-700 font-medium hover:bg-charcoal-50 transition-colors"
+            >
+              Keep Tournament
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isLoading}
+              className="flex-1 px-4 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {isLoading ? 'Cancelling...' : 'Cancel Tournament'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Waiting for players banner
+function WaitingBanner({ tournament }: { tournament: Tournament }) {
+  const spotsNeeded = tournament.maxPlayers - tournament.players.length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6"
+    >
+      <div className="flex items-center justify-center gap-3">
+        <span className="text-2xl">⏳</span>
+        <div className="text-center">
+          <p className="font-medium text-amber-800">
+            Waiting for {spotsNeeded} more player{spotsNeeded !== 1 ? 's' : ''} to join
+          </p>
+          <p className="text-sm text-amber-600 mt-1">
+            Share code: <span className="font-mono font-bold">{tournament.id}</span>
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // Active tournament view with action card
 function ActiveTournamentView({
   tournament,
   playerName,
   onStartMatch,
-  onLeaveTournament,
+  onTakeBreak,
+  onForfeit,
+  isPlayerEliminated,
 }: {
   tournament: Tournament;
   playerName: string;
   onStartMatch: (match: TournamentMatch) => void;
-  onLeaveTournament: () => void;
+  onTakeBreak: () => void;
+  onForfeit: () => void;
+  isPlayerEliminated: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -103,16 +285,80 @@ function ActiveTournamentView({
         <TournamentLeaderboard
           players={tournament.players}
           currentPlayerName={playerName}
+          tournament={tournament}
+        />
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={onTakeBreak}
+          className="px-4 py-2 rounded-lg border border-charcoal-200 text-charcoal-600 text-sm font-medium hover:bg-charcoal-50 transition-colors"
+        >
+          Take a Break
+        </button>
+        {!isPlayerEliminated && (
+          <button
+            onClick={onForfeit}
+            className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors"
+          >
+            Forfeit & Leave
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Spectator view - read-only tournament view
+function SpectatorTournamentView({
+  tournament,
+  onLeave,
+}: {
+  tournament: Tournament;
+  onLeave: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Spectator badge */}
+      <div className="flex justify-center">
+        <div className="bg-charcoal-100 text-charcoal-700 px-4 py-2 rounded-full flex items-center gap-2">
+          <span className="text-xl">👁️</span>
+          <span className="font-medium">Watching as Spectator</span>
+        </div>
+      </div>
+
+      {/* Bracket section */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-parchment-50 px-4 py-3 text-center border-b border-parchment-200">
+          <h3 className="text-lg font-serif font-bold text-charcoal-800 tracking-wide">
+            🏆 Tournament Bracket
+          </h3>
+        </div>
+        <div className="p-6">
+          <BracketView
+            tournament={tournament}
+            currentPlayerName={undefined}
+          />
+        </div>
+      </div>
+
+      {/* Participants section */}
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <TournamentLeaderboard
+          players={tournament.players}
+          currentPlayerName={undefined}
+          tournament={tournament}
         />
       </div>
 
       {/* Leave button */}
       <div className="text-center">
         <button
-          onClick={onLeaveTournament}
-          className="text-charcoal-500 hover:text-charcoal-700 text-sm underline"
+          onClick={onLeave}
+          className="btn-secondary"
         >
-          Leave Tournament
+          Stop Watching
         </button>
       </div>
     </div>
@@ -136,6 +382,9 @@ export default function TournamentLobby() {
     getInitialLobbyMode(tournamentId, searchParams)
   );
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [wasCancelled, setWasCancelled] = useState(false);
   const [pendingMode, setPendingMode] = useState<'create' | 'join'>('create');
   const [joinCode, setJoinCode] = useState(tournamentId || '');
   const [tournamentSize, setTournamentSize] = useState<TournamentSize>(4);
@@ -146,33 +395,67 @@ export default function TournamentLobby() {
   const {
     tournament,
     playerName,
+    isSpectator,
     isLoading,
     error,
     createTournament,
     joinTournament,
     leaveTournament,
+    forfeitTournament,
+    cancelTournament,
     startTournament,
     loadTournament,
+    loadTournamentAsSpectator,
     clearTournament,
     isHost,
     canStart,
+    hasMatchesStarted,
+    startHeartbeat,
+    stopHeartbeat,
+    setupBeforeUnload,
+    cleanupBeforeUnload,
   } = useTournamentStore();
 
   const { createTournamentBattle, joinTournamentBattle } = useBattleStore();
 
+  // Check if joining as spectator
+  const isJoiningAsSpectator = searchParams.get('spectator') === 'true';
+
+  // Track previous tournament to detect cancellation
+  const [hadTournament, setHadTournament] = useState(false);
+
+  useEffect(() => {
+    if (tournament) {
+      setHadTournament(true);
+    } else if (hadTournament && tournamentId) {
+      // Tournament was loaded but is now null - it was cancelled or deleted
+      setWasCancelled(true);
+    }
+  }, [tournament, hadTournament, tournamentId]);
+
   // Load tournament if we have an ID in URL
   useEffect(() => {
-    if (tournamentId && !tournament && playerName) {
-      loadTournament(tournamentId, playerName);
+    if (tournamentId && !tournament) {
+      if (isJoiningAsSpectator) {
+        loadTournamentAsSpectator(tournamentId);
+      } else if (playerName) {
+        loadTournament(tournamentId, playerName);
+      }
     }
-  }, [tournamentId, tournament, playerName, loadTournament]);
+  }, [tournamentId, tournament, playerName, isJoiningAsSpectator, loadTournament, loadTournamentAsSpectator]);
 
-  // Clean up on unmount
+  // Start heartbeat when tournament is active and user is a player
   useEffect(() => {
-    return () => {
-      // Don't clear if navigating to battle
-    };
-  }, []);
+    if (tournament?.status === 'active' && playerName && !isSpectator) {
+      startHeartbeat();
+      setupBeforeUnload();
+
+      return () => {
+        stopHeartbeat();
+        cleanupBeforeUnload();
+      };
+    }
+  }, [tournament?.status, playerName, isSpectator, startHeartbeat, stopHeartbeat, setupBeforeUnload, cleanupBeforeUnload]);
 
   // Auto-navigate to battle when match becomes active
   useEffect(() => {
@@ -230,10 +513,36 @@ export default function TournamentLobby() {
     }
   };
 
-  const handleLeaveTournament = async () => {
-    await leaveTournament();
+  // Take a break - just navigate away, can come back
+  const handleTakeBreak = () => {
     clearTournament();
     navigate('/');
+  };
+
+  // Forfeit - permanent, needs confirmation
+  const handleForfeitConfirm = async () => {
+    const success = await forfeitTournament();
+    if (success) {
+      setShowForfeitModal(false);
+      navigate('/');
+    }
+  };
+
+  // Cancel tournament - host only, during registration
+  const handleCancelTournament = async () => {
+    const success = await cancelTournament();
+    if (success) {
+      navigate('/');
+    }
+  };
+
+  // Check if current player is eliminated
+  const isPlayerEliminated = (): boolean => {
+    if (!tournament || !playerName) return false;
+    const player = tournament.players.find(
+      p => p.name.toLowerCase() === playerName.toLowerCase()
+    );
+    return player?.eliminated || false;
   };
 
   const handleStartTournament = async () => {
@@ -286,8 +595,66 @@ export default function TournamentLobby() {
 
   // Render lobby content based on state
   const renderContent = () => {
+    // Tournament was cancelled
+    if (wasCancelled) {
+      return (
+        <div className="max-w-md mx-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-8 border border-parchment-200 shadow-lg text-center"
+          >
+            <div className="text-5xl mb-4">🚫</div>
+            <h2 className="text-2xl font-serif font-bold text-charcoal-900 mb-3">
+              Tournament Cancelled
+            </h2>
+            <p className="text-charcoal-600 mb-6">
+              This tournament was cancelled by the host.
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="btn-brass"
+            >
+              Return Home
+            </button>
+          </motion.div>
+        </div>
+      );
+    }
+
     // If we have an active tournament
     if (tournament) {
+      // Spectator mode - read-only view
+      if (isSpectator) {
+        // Show completed view for spectators too
+        if (tournament.status === 'completed') {
+          return (
+            <div className="max-w-4xl mx-auto">
+              <CompletedTournamentView
+                tournament={tournament}
+                playerName={undefined}
+                onReturnHome={() => {
+                  clearTournament();
+                  navigate('/');
+                }}
+              />
+            </div>
+          );
+        }
+
+        return (
+          <div className="max-w-4xl mx-auto">
+            <SpectatorTournamentView
+              tournament={tournament}
+              onLeave={() => {
+                clearTournament();
+                navigate('/');
+              }}
+            />
+          </div>
+        );
+      }
+
       return (
         <div className="max-w-4xl mx-auto">
           {/* Registration phase */}
@@ -396,14 +763,29 @@ export default function TournamentLobby() {
                 </motion.div>
               )}
 
-              {/* Leave button */}
-              <div className="text-center">
+              {/* Action buttons */}
+              <div className="flex items-center justify-center gap-4">
                 <button
-                  onClick={handleLeaveTournament}
-                  className="text-charcoal-500 hover:text-charcoal-700 text-sm underline"
+                  onClick={handleTakeBreak}
+                  className="px-4 py-2 rounded-lg border border-charcoal-200 text-charcoal-600 text-sm font-medium hover:bg-charcoal-50 transition-colors"
                 >
-                  Leave Tournament
+                  Take a Break
                 </button>
+                {isHost() ? (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Cancel Tournament
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowForfeitModal(true)}
+                    className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Withdraw from Tournament
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -414,55 +796,72 @@ export default function TournamentLobby() {
               tournament={tournament}
               playerName={playerName}
               onStartMatch={handleStartMatch}
-              onLeaveTournament={handleLeaveTournament}
+              onTakeBreak={handleTakeBreak}
+              onForfeit={() => setShowForfeitModal(true)}
+              isPlayerEliminated={isPlayerEliminated()}
             />
           )}
 
-          {/* Completed tournament */}
-          {tournament.status === 'completed' && (
-            <div className="space-y-8">
-              {/* Winner announcement */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-2xl p-8 border-2 border-yellow-400"
-              >
-                <div className="text-5xl mb-4">🏆</div>
-                <h2 className="text-3xl font-serif font-bold text-yellow-800 mb-2">
-                  {tournament.winner} Wins!
-                </h2>
-                <p className="text-yellow-700">Tournament Champion</p>
-              </motion.div>
+          {/* Waiting for players - show bracket with waiting banner */}
+          {tournament.status === 'waiting_for_players' && playerName && (
+            <div className="space-y-6">
+              {/* Waiting banner */}
+              <WaitingBanner tournament={tournament} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl p-6 shadow-sm">
+              {/* Bracket section */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-parchment-50 px-4 py-3 text-center border-b border-parchment-200">
+                  <h3 className="text-lg font-serif font-bold text-charcoal-800 tracking-wide">
+                    🏆 Tournament Bracket
+                  </h3>
+                </div>
+                <div className="p-6">
                   <BracketView
                     tournament={tournament}
-                    currentPlayerName={playerName || undefined}
-                  />
-                </div>
-
-                <div className="bg-white rounded-xl p-6 shadow-sm">
-                  <TournamentLeaderboard
-                    players={tournament.players}
-                    finalRankings={tournament.finalRankings}
-                    currentPlayerName={playerName || undefined}
+                    currentPlayerName={playerName}
                   />
                 </div>
               </div>
 
-              <div className="text-center">
+              {/* Participants section */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <TournamentLeaderboard
+                  players={tournament.players}
+                  currentPlayerName={playerName}
+                  tournament={tournament}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-center gap-4">
                 <button
-                  onClick={() => {
-                    clearTournament();
-                    navigate('/');
-                  }}
-                  className="btn-brass btn-lg"
+                  onClick={handleTakeBreak}
+                  className="px-4 py-2 rounded-lg border border-charcoal-200 text-charcoal-600 text-sm font-medium hover:bg-charcoal-50 transition-colors"
                 >
-                  Return Home
+                  Take a Break
                 </button>
+                {!isPlayerEliminated() && (
+                  <button
+                    onClick={() => setShowForfeitModal(true)}
+                    className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Forfeit & Leave
+                  </button>
+                )}
               </div>
             </div>
+          )}
+
+          {/* Completed tournament - Celebration! */}
+          {tournament.status === 'completed' && (
+            <CompletedTournamentView
+              tournament={tournament}
+              playerName={playerName || undefined}
+              onReturnHome={() => {
+                clearTournament();
+                navigate('/');
+              }}
+            />
           )}
         </div>
       );
@@ -562,7 +961,7 @@ export default function TournamentLobby() {
                 onClick={() => navigate('/')}
                 className="w-full text-center text-charcoal-500 hover:text-charcoal-700 text-sm"
               >
-                Back
+                Cancel
               </button>
             </div>
           </motion.div>
@@ -599,7 +998,7 @@ export default function TournamentLobby() {
               onClick={() => navigate('/')}
               className="mt-6 w-full text-center text-charcoal-500 hover:text-charcoal-700 text-sm"
             >
-              Back
+              Cancel
             </button>
           </motion.div>
         </div>
@@ -609,10 +1008,13 @@ export default function TournamentLobby() {
 
   // Get appropriate title based on tournament status
   const getHeaderTitle = () => {
+    if (wasCancelled) return 'Tournament Cancelled';
     if (!tournament) return 'Tournament Mode';
     switch (tournament.status) {
       case 'registration':
         return 'Tournament Lobby';
+      case 'waiting_for_players':
+        return 'Waiting for Players';
       case 'active':
         return 'Tournament Bracket';
       case 'completed':
@@ -627,6 +1029,9 @@ export default function TournamentLobby() {
     switch (tournament.status) {
       case 'registration':
         return `${tournament.players.length} player${tournament.players.length !== 1 ? 's' : ''} joined (${tournament.maxPlayers} max)`;
+      case 'waiting_for_players':
+        const spotsNeeded = tournament.maxPlayers - tournament.players.length;
+        return `Waiting for ${spotsNeeded} more player${spotsNeeded !== 1 ? 's' : ''} to join`;
       case 'active':
         return `${tournament.players.filter(p => !p.eliminated).length} players remaining`;
       case 'completed':
@@ -641,13 +1046,28 @@ export default function TournamentLobby() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur border-b border-parchment-200 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link to="/" className="btn-ghost text-sm">
-            Exit
-          </Link>
+          {tournament ? (
+            <button
+              onClick={handleTakeBreak}
+              className="btn-ghost text-sm"
+            >
+              Take a Break
+            </button>
+          ) : (
+            <div className="w-20" />
+          )}
           <h1 className="font-serif font-bold text-charcoal-900 text-lg">
             {getHeaderTitle()}
           </h1>
-          <div className="w-16" />
+          {/* Join code display in header */}
+          {tournament && (tournament.status === 'active' || tournament.status === 'waiting_for_players') ? (
+            <div className="flex items-center gap-1.5 bg-parchment-100 px-3 py-1.5 rounded-lg border border-parchment-300">
+              <span className="text-xs text-charcoal-500">Code:</span>
+              <span className="font-mono font-bold text-charcoal-800">{tournament.id}</span>
+            </div>
+          ) : (
+            <div className="w-20" />
+          )}
         </div>
       </div>
 
@@ -670,6 +1090,23 @@ export default function TournamentLobby() {
         isOpen={showNameModal}
         onSubmit={handleNameSubmit}
         onCancel={() => setShowNameModal(false)}
+      />
+
+      {/* Forfeit confirmation modal */}
+      <ForfeitConfirmationModal
+        isOpen={showForfeitModal}
+        isRegistration={tournament?.status === 'registration'}
+        onConfirm={handleForfeitConfirm}
+        onCancel={() => setShowForfeitModal(false)}
+        isLoading={isLoading}
+      />
+
+      {/* Cancel tournament modal (host only, registration phase) */}
+      <CancelConfirmationModal
+        isOpen={showCancelModal}
+        onConfirm={handleCancelTournament}
+        onCancel={() => setShowCancelModal(false)}
+        isLoading={isLoading}
       />
     </div>
   );

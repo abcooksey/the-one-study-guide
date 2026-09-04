@@ -263,6 +263,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
         player4: null,
         maxPlayers: 2,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        battleStartedAt: new Date().toISOString(), // Set start time for tournament battles
       };
 
       const success = await createBattleFirestore(battle);
@@ -589,7 +590,8 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     }
 
     // Check if battle should complete (all players finished)
-    if (battle.status === 'active' && get().allPlayersFinished()) {
+    // Only proceed if rankings don't exist yet (idempotency check)
+    if (battle.status === 'active' && !battle.rankings && get().allPlayersFinished()) {
       // All finished - determine rankings (only host does this)
       if (get().isHost()) {
         const rankings = get().determineRankings();
@@ -751,13 +753,25 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     const incorrect = player.attempts.filter((a) => a.status === 'incorrect').length;
     const total = correct + incorrect;
 
-    const startTime = battle.battleStartedAt ? new Date(battle.battleStartedAt).getTime() : 0;
+    // Robust start time calculation with multiple fallbacks
+    let startTime: number;
+    if (battle.battleStartedAt) {
+      startTime = new Date(battle.battleStartedAt).getTime();
+    } else if (battle.countdownStartedAt) {
+      // Fallback: countdown + 10 seconds (countdown duration)
+      startTime = new Date(battle.countdownStartedAt).getTime() + 10000;
+    } else {
+      // Last resort: use first answer time minus small buffer
+      const firstAnswer = player.attempts.find(a => a.answeredAt);
+      startTime = firstAnswer?.answeredAt ? new Date(firstAnswer.answeredAt).getTime() - 5000 : Date.now();
+    }
+
     const endTime = player.finishedAt ? new Date(player.finishedAt).getTime() : Date.now();
 
     return {
       correct,
       incorrect,
-      totalTime: endTime - startTime,
+      totalTime: Math.max(0, endTime - startTime), // Ensure non-negative
       accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
   },
@@ -773,13 +787,25 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     const incorrect = player.attempts.filter((a) => a.status === 'incorrect').length;
     const total = correct + incorrect;
 
-    const startTime = battle.battleStartedAt ? new Date(battle.battleStartedAt).getTime() : 0;
+    // Robust start time calculation with multiple fallbacks
+    let startTime: number;
+    if (battle.battleStartedAt) {
+      startTime = new Date(battle.battleStartedAt).getTime();
+    } else if (battle.countdownStartedAt) {
+      // Fallback: countdown + 10 seconds (countdown duration)
+      startTime = new Date(battle.countdownStartedAt).getTime() + 10000;
+    } else {
+      // Last resort: use first answer time minus small buffer
+      const firstAnswer = player.attempts.find(a => a.answeredAt);
+      startTime = firstAnswer?.answeredAt ? new Date(firstAnswer.answeredAt).getTime() - 5000 : Date.now();
+    }
+
     const endTime = player.finishedAt ? new Date(player.finishedAt).getTime() : Date.now();
 
     return {
       correct,
       incorrect,
-      totalTime: endTime - startTime,
+      totalTime: Math.max(0, endTime - startTime), // Ensure non-negative
       accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
     };
   },

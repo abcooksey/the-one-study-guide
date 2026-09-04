@@ -25,6 +25,10 @@ export default function BattleLobby() {
   const [searchParams] = useSearchParams();
   const modeParam = searchParams.get('mode');
 
+  // Preserve tournament query params for navigation
+  const queryString = searchParams.toString();
+  const queryParams = queryString ? `?${queryString}` : '';
+
   // Determine initial mode based on URL
   const getInitialMode = (): LobbyMode => {
     if (urlCode) return 'join';
@@ -76,9 +80,9 @@ export default function BattleLobby() {
   // Navigate to battle when it starts
   useEffect(() => {
     if (battle?.status === 'active') {
-      navigate(`/battle/${battle.id}/play`);
+      navigate(`/battle/${battle.id}/play${queryParams}`);
     }
-  }, [battle?.status, battle?.id, navigate]);
+  }, [battle?.status, battle?.id, navigate, queryParams]);
 
   // Handle create battle
   const handleCreateClick = () => {
@@ -284,7 +288,7 @@ export default function BattleLobby() {
 
             {joinCode.length === 4 && (
               <button
-                onClick={() => navigate(`/battle/${joinCode}/spectate`)}
+                onClick={() => navigate(`/battle/${joinCode}/spectate${queryParams}`)}
                 className="mt-4 w-full text-center text-brass-600 hover:text-brass-700 text-sm flex items-center justify-center gap-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

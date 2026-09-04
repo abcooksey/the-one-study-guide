@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { useBattleStore } from '../store/battleStore';
 import { useAppStore } from '../store';
 import Flashcard from '../components/Flashcard';
@@ -12,6 +12,11 @@ import { getSpectatorCount } from '../lib/battleFirestore';
 export default function BattleSession() {
   const navigate = useNavigate();
   const { code } = useParams<{ code: string }>();
+  const [searchParams] = useSearchParams();
+
+  // Preserve tournament query params for navigation
+  const queryString = searchParams.toString();
+  const queryParams = queryString ? `?${queryString}` : '';
 
   const [showAbandonDialog, setShowAbandonDialog] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -46,7 +51,7 @@ export default function BattleSession() {
     }
 
     if (battle.status === 'completed') {
-      navigate(`/battle/${code}/results`);
+      navigate(`/battle/${code}/results${queryParams}`);
     }
   }, [battle, battle?.status, code, navigate]);
 
@@ -55,8 +60,8 @@ export default function BattleSession() {
     if (canComplete && !hasAutoFinished.current && currentPlayer && !currentPlayer.finishedAt) {
       hasAutoFinished.current = true;
       finishBattle().then(() => {
-        // Navigate to waiting page
-        navigate(`/battle/${code}/waiting`);
+        // Navigate to waiting page, preserving tournament params
+        navigate(`/battle/${code}/waiting${queryParams}`);
       });
     }
   }, [canComplete, currentPlayer, finishBattle, code, navigate]);

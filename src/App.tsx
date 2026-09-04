@@ -16,6 +16,7 @@ import BattleResults from './pages/BattleResults';
 import BattleHistory from './pages/BattleHistory';
 import BattleSpectate from './pages/BattleSpectate';
 import TournamentLobby from './pages/TournamentLobby';
+import TournamentHistory from './pages/TournamentHistory';
 
 function App() {
   const initializeFlashcards = useAppStore((state) => state.initializeFlashcards);
@@ -49,6 +50,7 @@ function App() {
         <Route path="/battle/:code/results" element={<BattleResults />} />
         <Route path="/battle/:code/spectate" element={<BattleSpectate />} />
         <Route path="/tournament" element={<TournamentLobby />} />
+        <Route path="/tournament/history" element={<TournamentHistory />} />
         <Route path="/tournament/:id" element={<TournamentLobby />} />
       </Routes>
     </Layout>
