@@ -76,7 +76,7 @@ interface AppState {
   getFlaggedFlashcards: () => Flashcard[];
 
   // Actions - Session
-  startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => boolean;
+  startNewSession: (profile: Profile, difficultyMode: DifficultyMode, flaggedCardIds?: Set<string>) => boolean;
   flipCard: () => void;
   unflipCard: () => void;
   goToCard: (index: number) => void;
@@ -360,7 +360,7 @@ export const useAppStore = create<AppState>()(
         return state.flashcards.filter((f) => f.flag !== undefined);
       },
 
-      startNewSession: (profile: Profile, difficultyMode: DifficultyMode) => {
+      startNewSession: (profile: Profile, difficultyMode: DifficultyMode, flaggedCardIds?: Set<string>) => {
         const state = get();
         // Exclude flagged flashcards from sessions
         const availableFlashcards = state.flashcards.filter((f) => !f.flag);
@@ -485,9 +485,14 @@ export const useAppStore = create<AppState>()(
           }
 
           // Score each flashcard based on weakness (lower accuracy = higher priority)
-          // Also factor in recency penalty
+          // Also factor in recency penalty and practice flags from battles
           const scoredCards = availableFlashcards.map((card) => {
             let score = 0;
+
+            // Highest priority: cards flagged for practice from battle review
+            if (flaggedCardIds && flaggedCardIds.has(card.id)) {
+              score += 100; // Always include flagged cards first
+            }
 
             // Add score based on film weakness (weak films get higher scores)
             const filmIndex = weakFilms.indexOf(card.film);
