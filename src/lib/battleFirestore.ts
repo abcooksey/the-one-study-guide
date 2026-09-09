@@ -537,3 +537,50 @@ export async function setAllowSpectators(
 export function getSpectatorCount(battle: Battle): number {
   return battle.spectators?.length || 0;
 }
+
+/**
+ * Set rematch code on the original battle (for real-time invite notification)
+ * This updates the original battle so other players can see a rematch was initiated
+ */
+export async function setRematchCode(
+  originalBattleCode: string,
+  rematchBattleCode: string,
+  initiatedBy: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = getBattleDocRef(originalBattleCode);
+    await updateDoc(docRef, {
+      rematchBattleCode,
+      rematchInitiatedBy: initiatedBy,
+      rematchInitiatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error setting rematch code:', error);
+    return false;
+  }
+}
+
+/**
+ * Clear rematch code from original battle (if rematch is cancelled)
+ */
+export async function clearRematchCode(
+  originalBattleCode: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+
+  try {
+    const docRef = getBattleDocRef(originalBattleCode);
+    await updateDoc(docRef, {
+      rematchBattleCode: null,
+      rematchInitiatedBy: null,
+      rematchInitiatedAt: null,
+    });
+    return true;
+  } catch (error) {
+    console.error('Error clearing rematch code:', error);
+    return false;
+  }
+}

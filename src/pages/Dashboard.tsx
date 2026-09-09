@@ -7,8 +7,6 @@ import { BattleLeaderboard } from '../components/battle';
 import { ActiveTournaments } from '../components/tournament';
 import { getOverallTrend } from '../utils/stats';
 import { Profile, PerformanceStats, DifficultyMode, DetailedStats, StatBreakdown } from '../types';
-// Temporary: expose endAllOpenTournaments on window for admin use
-import '../lib/endAllTournaments';
 
 function StatBar({ stat }: { stat: StatBreakdown }) {
   return (
