@@ -27,6 +27,7 @@ import {
   removePlayerFromBattle,
   markPlayerDisconnected,
   isHeartbeatStale,
+  setRematchCode,
 } from '../lib/battleFirestore';
 import { generateBattleCode } from '../utils/battleCode';
 
@@ -78,7 +79,7 @@ interface BattleState {
   goToQuestion: (index: number) => Promise<void>;
   finishBattle: () => Promise<void>;
   leaveBattle: () => void;
-  createRematch: (player: CreateBattlePlayerInput, flashcards: Flashcard[]) => Promise<string | null>;
+  createRematch: (player: CreateBattlePlayerInput, flashcards: Flashcard[], originalBattleCode?: string) => Promise<string | null>;
 
   // Internal actions
   subscribeToBattleUpdates: (code: string) => void;
@@ -488,7 +489,7 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
     });
   },
 
-  createRematch: async (player, flashcards) => {
+  createRematch: async (player, flashcards, originalBattleCode) => {
     const { lastBattleConfig } = get();
     if (!lastBattleConfig) {
       set({ error: 'No previous battle to rematch' });
@@ -497,6 +498,13 @@ export const useBattleStore = create<BattleState>()((set, get) => ({
 
     // Use the same maxPlayers from the previous battle
     const code = await get().createBattle(player, flashcards, lastBattleConfig.maxPlayers);
+
+    // If we have the original battle code, update it with rematch info
+    // This triggers real-time updates for other players still on results screen
+    if (code && originalBattleCode) {
+      await setRematchCode(originalBattleCode, code, player.name);
+    }
+
     return code;
   },
 

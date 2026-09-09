@@ -82,21 +82,11 @@ export default function BattleWinnerAnnouncement({
       animate={{ opacity: 1 }}
       className="text-center py-8"
     >
-      {/* Trophy/Result Icon */}
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
-        className="text-7xl mb-4"
-      >
-        {isCurrentPlayerWinner ? '...' : '...'}
-      </motion.div>
-
       {/* Result Heading */}
       <motion.h1
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.2 }}
         className={`text-3xl sm:text-4xl font-serif font-bold mb-4 ${
           isCurrentPlayerWinner ? 'text-forest-600' : 'text-charcoal-700'
         }`}
@@ -114,7 +104,7 @@ export default function BattleWinnerAnnouncement({
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
+        transition={{ delay: 0.4 }}
         className="text-charcoal-600 max-w-md mx-auto mb-8 italic"
       >
         "{getMessage()}"
@@ -124,7 +114,7 @@ export default function BattleWinnerAnnouncement({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
+        transition={{ delay: 0.6 }}
         className="mb-8"
       >
         {/* 1st Place - Large and centered */}
@@ -190,62 +180,44 @@ export default function BattleWinnerAnnouncement({
         )}
       </motion.div>
 
-      {/* Detailed Stats */}
+      {/* Horizontal Stats Row */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className={`grid gap-4 max-w-3xl mx-auto ${
-          playerCount === 2
-            ? 'grid-cols-2'
-            : playerCount === 3
-              ? 'grid-cols-3'
-              : 'grid-cols-2 lg:grid-cols-4'
-        }`}
+        transition={{ delay: 0.8 }}
+        className="bg-white border border-parchment-200 rounded-xl overflow-hidden max-w-2xl mx-auto"
       >
-        {effectiveRankings.map((key) => {
-          const player = players[key];
-          const stats = playerStats[key];
+        <div className="flex divide-x divide-parchment-200">
+          {effectiveRankings.map((key) => {
+            const player = players[key];
+            const stats = playerStats[key];
 
-          if (!player || !stats) return null;
+            if (!player || !stats) return null;
 
-          return (
-            <div
-              key={key}
-              className={`bg-white rounded-xl p-4 border ${
-                key === currentPlayerKey
-                  ? 'border-forest-300 ring-2 ring-forest-200'
-                  : 'border-parchment-200'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <img src={player.emoji} alt={player.name} className="w-8 h-8 object-contain" />
-                <span className="font-medium text-charcoal-800 truncate">{player.name}</span>
-                {key === currentPlayerKey && (
-                  <span className="text-xs text-forest-600">(You)</span>
-                )}
-              </div>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-charcoal-500">Correct</span>
-                  <span className="font-medium text-green-600">{stats.correct}</span>
+            return (
+              <div
+                key={key}
+                className={`flex-1 text-center py-4 px-3 ${
+                  key === currentPlayerKey ? 'bg-forest-50' : ''
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <img src={player.emoji} alt={player.name} className="w-6 h-6 object-contain" />
+                  <span className="font-medium text-charcoal-800 truncate">{player.name}</span>
+                  {key === currentPlayerKey && (
+                    <span className="text-xs text-forest-600">(You)</span>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-charcoal-500">Incorrect</span>
-                  <span className="font-medium text-red-600">{stats.incorrect}</span>
+                <div className="text-lg font-bold text-charcoal-900">
+                  {stats.correct} correct
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-charcoal-500">Accuracy</span>
-                  <span className="font-medium">{stats.accuracy}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-charcoal-500">Time</span>
-                  <span className="font-medium">{formatTime(stats.totalTime)}</span>
+                <div className="text-sm text-charcoal-500">
+                  {stats.accuracy}% · {formatTime(stats.totalTime)}
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </motion.div>
     </motion.div>
   );

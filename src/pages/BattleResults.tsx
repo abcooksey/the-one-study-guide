@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBattleStore } from '../store/battleStore';
 import { useAppStore } from '../store';
 import { useTournamentStore } from '../store/tournamentStore';
-import { BattleWinnerAnnouncement } from '../components/battle';
+import { BattleWinnerAnnouncement, QuestionReview } from '../components/battle';
+import RematchInviteModal from '../components/battle/RematchInviteModal';
 import { BattleStats, BattleAttempt, PlayerKey } from '../types/battle';
 import { BattleResult } from '../types/battlePlayer';
 import { BattleHistoryEntry } from '../types/battleHistory';
 import { getOrCreatePlayer, updatePlayerStats } from '../lib/battlePlayerFirestore';
 import { getActivePlayers } from '../lib/battleFirestore';
 import { saveBattleHistoryEntry } from '../lib/battleHistoryFirestore';
+import { updateQuestionStats } from '../lib/questionStatsFirestore';
 
 // Calculate correctness stats from attempts, excluding flagged/unanswered questions
 const calculateCorrectnessStats = (attempts: BattleAttempt[]) => {
@@ -27,12 +29,20 @@ export default function BattleResults() {
   const [searchParams] = useSearchParams();
   const statsUpdatedRef = useRef(false);
   const tournamentUpdatedRef = useRef(false);
-  const [rematchCode, setRematchCode] = useState<string | null>(null);
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
 
   // State to track when data has stabilized from Firestore sync
   const [isDataStable, setIsDataStable] = useState(false);
   const lastRankingsRef = useRef<string | null>(null);
+
+  // Rematch invite state
+  const [showRematchInvite, setShowRematchInvite] = useState(false);
+  const [rematchInviteData, setRematchInviteData] = useState<{
+    code: string;
+    initiatorName: string;
+    initiatorEmoji?: string;
+  } | null>(null);
+  const processedRematchCodeRef = useRef<string | null>(null);
 
   // Check if this is a tournament battle
   const tournamentId = searchParams.get('tournament');
@@ -44,7 +54,6 @@ export default function BattleResults() {
     getStatsForPlayer,
     leaveBattle,
     createRematch,
-    lastBattleConfig,
   } = useBattleStore();
 
   const flashcards = useAppStore((state) => state.flashcards);
@@ -126,6 +135,29 @@ export default function BattleResults() {
         // Save to player's battle history
         await saveBattleHistoryEntry(player.name, historyEntry);
       }
+
+      // Update question statistics for cross-session difficulty tracking
+      for (let i = 0; i < battle.questionIds.length; i++) {
+        const questionId = battle.questionIds[i];
+        let correctCount = 0;
+        let totalTimeMs = 0;
+
+        for (const { player } of activePlayers) {
+          const attempt = player.attempts[i];
+          if (attempt && attempt.status === 'correct') correctCount++;
+          if (attempt && attempt.answeredAt && battle.battleStartedAt) {
+            const answerTime = new Date(attempt.answeredAt).getTime();
+            const startTime = new Date(battle.battleStartedAt).getTime();
+            totalTimeMs += answerTime - startTime;
+          }
+        }
+
+        await updateQuestionStats(questionId, {
+          incrementTimesAsked: activePlayers.length,
+          incrementTimesCorrect: correctCount,
+          incrementTotalTimeMs: totalTimeMs,
+        });
+      }
     };
 
     updateStats();
@@ -191,6 +223,68 @@ export default function BattleResults() {
     }
   }, [battle, navigate]);
 
+  // Detect when another player initiates a rematch (not for tournament battles)
+  useEffect(() => {
+    // Skip for tournament battles
+    if (tournamentId) return;
+
+    // Check if a rematch was initiated
+    if (
+      battle?.rematchBattleCode &&
+      battle?.rematchInitiatedBy &&
+      processedRematchCodeRef.current !== battle.rematchBattleCode
+    ) {
+      // Get current player's name
+      const currentPlayer = playerKey ? battle[playerKey] : null;
+      const currentPlayerName = currentPlayer?.name?.toLowerCase();
+      const initiatorName = battle.rematchInitiatedBy.toLowerCase();
+
+      // Only show invite if someone ELSE initiated the rematch
+      if (currentPlayerName && initiatorName !== currentPlayerName) {
+        // Find the initiator's emoji
+        const initiatorPlayer = getActivePlayers(battle).find(
+          ({ player }) => player.name.toLowerCase() === initiatorName
+        );
+
+        setRematchInviteData({
+          code: battle.rematchBattleCode,
+          initiatorName: battle.rematchInitiatedBy,
+          initiatorEmoji: initiatorPlayer?.player.emoji,
+        });
+        setShowRematchInvite(true);
+        processedRematchCodeRef.current = battle.rematchBattleCode;
+      }
+    }
+  }, [battle?.rematchBattleCode, battle?.rematchInitiatedBy, playerKey, tournamentId, battle]);
+
+  // Handle accepting rematch invite - must be before any early returns (hooks rule)
+  const handleAcceptRematch = useCallback(async () => {
+    if (!rematchInviteData?.code || !battle || !playerKey) return;
+
+    // Get current player's info to use for joining
+    const currentPlayer = battle[playerKey];
+    if (!currentPlayer) return;
+
+    setShowRematchInvite(false);
+
+    // Actually join the rematch battle with our existing player info
+    const { joinBattle } = useBattleStore.getState();
+    const success = await joinBattle(rematchInviteData.code, {
+      name: currentPlayer.name,
+      emoji: currentPlayer.emoji,
+    });
+
+    if (success) {
+      navigate(`/battle/${rematchInviteData.code}`);
+    }
+  }, [rematchInviteData, navigate, battle, playerKey]);
+
+  // Handle declining rematch invite - must be before any early returns (hooks rule)
+  const handleDeclineRematch = useCallback(() => {
+    setShowRematchInvite(false);
+    setRematchInviteData(null);
+  }, []);
+
   // Show loading until data is stable to prevent race condition display issues
   if (!battle || !playerKey || battle.status !== 'completed' || !isDataStable) {
     return (
@@ -238,32 +332,33 @@ export default function BattleResults() {
 
     setIsCreatingRematch(true);
 
+    // Pass the original battle code so other players get notified
     const code = await createRematch(
       { name: currentPlayer.name, emoji: currentPlayer.emoji },
-      flashcards
+      flashcards,
+      battle.id
     );
 
     setIsCreatingRematch(false);
 
     if (code) {
-      setRematchCode(code);
-    }
-  };
-
-  const handleGoToRematch = () => {
-    if (rematchCode) {
-      navigate(`/battle/${rematchCode}`);
-    }
-  };
-
-  const handleCopyRematchCode = () => {
-    if (rematchCode) {
-      navigator.clipboard.writeText(rematchCode);
+      // Navigate immediately to the new lobby
+      navigate(`/battle/${code}`);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-parchment-100 to-parchment-200">
+      {/* Rematch Invite Modal */}
+      {showRematchInvite && rematchInviteData && (
+        <RematchInviteModal
+          initiatorName={rematchInviteData.initiatorName}
+          initiatorEmoji={rematchInviteData.initiatorEmoji}
+          onAccept={handleAcceptRematch}
+          onDecline={handleDeclineRematch}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white/80 backdrop-blur border-b border-parchment-200 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -304,11 +399,11 @@ export default function BattleResults() {
             >
               Return to Tournament
             </button>
-          ) : !rematchCode ? (
+          ) : (
             <>
               <button
                 onClick={handleRematch}
-                disabled={isCreatingRematch}
+                disabled={isCreatingRematch || showRematchInvite}
                 className="btn-primary btn-lg"
               >
                 {isCreatingRematch ? 'Creating...' : 'Rematch'}
@@ -320,47 +415,15 @@ export default function BattleResults() {
                 Return Home
               </button>
             </>
-          ) : (
-            <div className="flex flex-col items-center gap-4">
-              <div className="bg-white rounded-xl p-6 shadow-lg border border-parchment-200">
-                <p className="text-charcoal-600 text-sm mb-2 text-center">
-                  Share this code with your opponent{lastBattleConfig && lastBattleConfig.opponentNames.length > 0 && 's'}:
-                </p>
-                <div className="flex items-center justify-center gap-3 mb-4">
-                  <span className="font-mono text-3xl font-bold text-primary-600 tracking-wider">
-                    {rematchCode}
-                  </span>
-                  <button
-                    onClick={handleCopyRematchCode}
-                    className="p-2 hover:bg-parchment-100 rounded-lg transition-colors"
-                    title="Copy code"
-                  >
-                    <svg className="w-5 h-5 text-charcoal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
-                {lastBattleConfig && lastBattleConfig.opponentNames.length > 0 && (
-                  <p className="text-charcoal-500 text-xs text-center mb-4">
-                    Waiting for: {lastBattleConfig.opponentNames.join(', ')}
-                  </p>
-                )}
-                <button
-                  onClick={handleGoToRematch}
-                  className="btn-primary w-full"
-                >
-                  Go to Lobby
-                </button>
-              </div>
-              <button
-                onClick={handleReturnHome}
-                className="text-charcoal-500 hover:text-charcoal-700 text-sm"
-              >
-                Cancel and Return Home
-              </button>
-            </div>
           )}
         </motion.div>
+
+        {/* Question Review Section */}
+        <QuestionReview
+          battle={battle}
+          playerKey={playerKey}
+          flashcards={flashcards}
+        />
 
         {/* Fun fact */}
         <motion.div

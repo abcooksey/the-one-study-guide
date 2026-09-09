@@ -63,6 +63,11 @@ export interface Battle {
   // e.g., ['player3', 'player1', 'player4', 'player2']
   rankings?: PlayerKey[];
 
+  // Rematch tracking (standalone battles only)
+  rematchBattleCode?: string;    // Code of the new rematch battle
+  rematchInitiatedBy?: string;   // Name of player who initiated
+  rematchInitiatedAt?: string;   // ISO timestamp for timeout tracking
+
   expiresAt: string;             // TTL for cleanup (1 hour)
 }
 
